@@ -354,18 +354,17 @@ function createSubtitleItem(segment: any, index: number) {
                     <option value="">未分配</option>
                     ${speakerOptions}
                 </select>
-                <button class="btn btn-secondary btn-edit" data-index="${index}">编辑</button>
+                <button class="btn btn-secondary btn-toggle-original" data-index="${index}" title="显示/隐藏原文">👁️</button>
                 <button class="btn btn-danger btn-delete" data-index="${index}">删除</button>
             </div>
         </div>
         <div class="subtitle-content">
-            <div class="subtitle-text original">
-                <div class="subtitle-label">原文 (${segment.language})</div>
-                <textarea class="text-original" data-index="${index}">${segment.text}</textarea>
-            </div>
             <div class="subtitle-text translation">
-                <div class="subtitle-label">译文 (中文)</div>
-                <textarea class="text-translation" data-index="${index}">${segment.translatedText || ''}</textarea>
+                <textarea class="text-translation" data-index="${index}" placeholder="译文 (中文)">${segment.translatedText || ''}</textarea>
+            </div>
+            <div class="subtitle-text original hidden">
+                <div class="subtitle-label">原文 (${segment.language})</div>
+                <textarea class="text-original" data-index="${index}" readonly>${segment.text}</textarea>
             </div>
         </div>
     `;
@@ -384,6 +383,11 @@ function createSubtitleItem(segment: any, index: number) {
     div.querySelector('.text-translation')?.addEventListener('change', (e: Event) => {
         const target = e.target as HTMLTextAreaElement;
         currentSegments[index].translatedText = target.value;
+    });
+    
+    div.querySelector('.btn-toggle-original')?.addEventListener('click', () => {
+        const originalText = div.querySelector('.subtitle-text.original');
+        originalText?.classList.toggle('hidden');
     });
     
     div.querySelector('.btn-delete')?.addEventListener('click', () => {
