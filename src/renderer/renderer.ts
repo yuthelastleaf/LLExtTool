@@ -37,6 +37,10 @@ const elements = {
     whisperModelPath: document.getElementById('whisperModelPath') as HTMLInputElement,
     translationModelPath: document.getElementById('translationModelPath') as HTMLInputElement,
     outputDirectory: document.getElementById('outputDirectory') as HTMLInputElement,
+    
+    /** 添加说话人对话框 */
+    addSpeakerModal: document.getElementById('addSpeakerModal') as HTMLDivElement,
+    speakerNameInput: document.getElementById('speakerNameInput') as HTMLInputElement,
 };
 
 /** 初始化 */
@@ -116,6 +120,39 @@ function setupEventListeners() {
     });
     
     document.getElementById('saveSettingsBtn')?.addEventListener('click', saveSettings);
+    
+    /** 添加说话人对话框 */
+    document.getElementById('closeSpeakerModal')?.addEventListener('click', () => {
+        elements.addSpeakerModal.classList.add('hidden');
+        elements.speakerNameInput.value = '';
+    });
+    
+    document.getElementById('cancelAddSpeaker')?.addEventListener('click', () => {
+        elements.addSpeakerModal.classList.add('hidden');
+        elements.speakerNameInput.value = '';
+    });
+    
+    document.getElementById('confirmAddSpeaker')?.addEventListener('click', () => {
+        const name = elements.speakerNameInput.value.trim();
+        if (name && !speakers.includes(name)) {
+            speakers.push(name);
+            displaySubtitles();
+            elements.addSpeakerModal.classList.add('hidden');
+            elements.speakerNameInput.value = '';
+            console.log('[Renderer] 添加说话人:', name);
+        } else if (speakers.includes(name)) {
+            alert('该说话人已存在！');
+        } else {
+            alert('请输入说话人名称！');
+        }
+    });
+    
+    // 回车键确认
+    elements.speakerNameInput.addEventListener('keypress', (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            document.getElementById('confirmAddSpeaker')?.click();
+        }
+    });
     
     /** 模型路径选择 */
     document.getElementById('selectWhisperModelBtn')?.addEventListener('click', async () => {
@@ -361,11 +398,10 @@ function createSubtitleItem(segment: any, index: number) {
  * 添加说话人
  */
 function addSpeaker() {
-    const name = prompt('请输入说话人名称:');
-    if (name && !speakers.includes(name)) {
-        speakers.push(name);
-        displaySubtitles();
-    }
+    console.log('[Renderer] 打开添加说话人对话框');
+    elements.addSpeakerModal.classList.remove('hidden');
+    elements.speakerNameInput.value = '';
+    elements.speakerNameInput.focus();
 }
 
 /**

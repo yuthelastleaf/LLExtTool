@@ -133,6 +133,26 @@
         </div>
     </div>
 
+    <!-- 添加说话人对话框 -->
+    <div id="addSpeakerModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>添加说话人</h2>
+                <button class="close-btn" id="closeSpeakerModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>说话人名称:</label>
+                    <input type="text" id="speakerNameInput" placeholder="请输入说话人名称...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="confirmAddSpeaker" class="btn btn-primary">确定</button>
+                <button id="cancelAddSpeaker" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // 为 CommonJS 模块提供全局对象
         if (typeof exports === 'undefined') {
