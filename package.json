@@ -1,0 +1,63 @@
+{
+  "name": "llexttool",
+  "version": "1.0.0",
+  "description": "视频字幕提取和翻译工具 - 集成 FFmpeg、Whisper 和翻译模型",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "build:native": "node scripts/build-native.js",
+    "build:native:gyp": "node-gyp rebuild",
+    "rebuild": "electron-rebuild",
+    "postinstall": "electron-builder install-app-deps",
+    "setup:ffmpeg": "powershell -ExecutionPolicy Bypass -File scripts/download-ffmpeg.ps1",
+    "setup:whisper": "powershell -ExecutionPolicy Bypass -File scripts/download-whisper.ps1",
+    "setup": "npm run setup:ffmpeg && npm run setup:whisper",
+    "watch": "tsc -w",
+    "watch:assets": "node scripts/watch-assets.js",
+    "start": "npm run build && electron .",
+    "dev": "concurrently \"npm run watch\" \"npm run watch:assets\" \"wait-on dist/main/main.js dist/renderer/index.html && electron .\"",
+    "package": "electron-builder",
+    "clean": "rimraf dist build"
+  },
+  "keywords": [
+    "electron",
+    "ffmpeg",
+    "whisper",
+    "subtitle",
+    "translation"
+  ],
+  "author": "yuthelastleaf",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "cmake-js": "^7.4.0",
+    "concurrently": "^8.2.2",
+    "electron": "27.3.11",
+    "electron-builder": "^24.9.1",
+    "electron-rebuild": "^3.2.9",
+    "node-gyp": "^10.0.1",
+    "typescript": "^5.3.3",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "bindings": "^1.5.0",
+    "node-addon-api": "^7.1.0"
+  },
+  "build": {
+    "appId": "com.llexttool.app",
+    "productName": "LLExtTool",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "native/**/*",
+      "models/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}

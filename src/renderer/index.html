@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLExtTool - 视频字幕提取工具</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 头部工具栏 -->
+        <header class="header">
+            <h1>LLExtTool - 视频字幕提取工具</h1>
+            <button id="settingsBtn" class="btn btn-secondary">⚙️ 设置</button>
+        </header>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 左侧：视频和控制面板 -->
+            <aside class="sidebar">
+                <div class="card">
+                    <h2>视频处理</h2>
+                    
+                    <div class="form-group">
+                        <label>视频文件:</label>
+                        <div class="input-group">
+                            <input type="text" id="videoPath" readonly placeholder="选择视频文件...">
+                            <button id="selectVideoBtn" class="btn btn-primary">选择</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>源语言:</label>
+                        <select id="sourceLanguage">
+                            <option value="ja">日语</option>
+                            <option value="en">英语</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>目标语言:</label>
+                        <select id="targetLanguage">
+                            <option value="zh" selected>中文</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>音频格式:</label>
+                        <select id="audioFormat">
+                            <option value="wav" selected>WAV</option>
+                            <option value="mp3">MP3</option>
+                        </select>
+                    </div>
+
+                    <button id="processBtn" class="btn btn-success btn-large" disabled>
+                        开始处理
+                    </button>
+
+                    <div id="statusPanel" class="status-panel hidden">
+                        <div class="status-message"></div>
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="status-percentage">0%</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>视频信息</h3>
+                    <div id="videoInfo" class="video-info">
+                        <p>未选择视频</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 右侧：字幕编辑器 -->
+            <main class="editor-area">
+                <div class="editor-header">
+                    <h2>字幕编辑器</h2>
+                    <div class="editor-actions">
+                        <button id="addSpeakerBtn" class="btn btn-secondary">➕ 添加说话人</button>
+                        <button id="exportBtn" class="btn btn-primary" disabled>💾 导出字幕</button>
+                    </div>
+                </div>
+
+                <div class="subtitle-list" id="subtitleList">
+                    <div class="empty-state">
+                        <p>暂无字幕数据</p>
+                        <p class="hint">选择视频并点击"开始处理"生成字幕</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 设置对话框 -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>设置</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Whisper 模型路径:</label>
+                    <div class="input-group">
+                        <input type="text" id="whisperModelPath" placeholder="选择模型文件...">
+                        <button id="selectWhisperModelBtn" class="btn btn-secondary">浏览</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>翻译模型路径:</label>
+                    <div class="input-group">
+                        <input type="text" id="translationModelPath" placeholder="选择模型文件...">
+                        <button id="selectTranslationModelBtn" class="btn btn-secondary">浏览</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>输出目录:</label>
+                    <div class="input-group">
+                        <input type="text" id="outputDirectory" placeholder="选择输出目录...">
+                        <button id="selectOutputDirBtn" class="btn btn-secondary">浏览</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveSettingsBtn" class="btn btn-primary">保存</button>
+                <button id="cancelSettingsBtn" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
