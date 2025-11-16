@@ -1,9 +1,11 @@
+import type { TranscriptSegment, AppConfig, ProcessingStatus } from '../shared/types';
+
 const { ipcRenderer } = require('electron');
 const { IpcChannels } = require('../shared/types');
 
-// 状态管理
-let currentConfig: any = null;
-let currentSegments: any[] = [];
+/** 状态管理 */
+let currentConfig: AppConfig | null = null;
+let currentSegments: TranscriptSegment[] = [];
 let currentVideoPath: string | null = null;
 let speakers: string[] = ['说话人A', '说话人B', '说话人C'];
 
@@ -14,21 +16,22 @@ const elements = {
     selectVideoBtn: document.getElementById('selectVideoBtn') as HTMLButtonElement,
     videoInfo: document.getElementById('videoInfo') as HTMLDivElement,
     
-    // 控制
+    /** 控制 */
     processBtn: document.getElementById('processBtn') as HTMLButtonElement,
     sourceLanguage: document.getElementById('sourceLanguage') as HTMLSelectElement,
     targetLanguage: document.getElementById('targetLanguage') as HTMLSelectElement,
     audioFormat: document.getElementById('audioFormat') as HTMLSelectElement,
     
-    // 状态
+    /** 状态 */
     statusPanel: document.getElementById('statusPanel') as HTMLDivElement,
     
-    // 字幕列表
+    /** 字幕列表 */
     subtitleList: document.getElementById('subtitleList') as HTMLDivElement,
+    importBtn: document.getElementById('importBtn') as HTMLButtonElement,
     exportBtn: document.getElementById('exportBtn') as HTMLButtonElement,
     addSpeakerBtn: document.getElementById('addSpeakerBtn') as HTMLButtonElement,
     
-    // 设置
+    /** 设置 */
     settingsBtn: document.getElementById('settingsBtn') as HTMLButtonElement,
     settingsModal: document.getElementById('settingsModal') as HTMLDivElement,
     whisperModelPath: document.getElementById('whisperModelPath') as HTMLInputElement,
@@ -36,13 +39,16 @@ const elements = {
     outputDirectory: document.getElementById('outputDirectory') as HTMLInputElement,
 };
 
-// 初始化
+/** 初始化 */
 async function init() {
+    console.log('[Renderer] ========== 开始初始化 ==========');
+    console.log('[Renderer] init() 函数被调用');
     await loadConfig();
     setupEventListeners();
+    console.log('[Renderer] ========== 初始化完成 ==========');
 }
 
-// 加载配置
+/** 加载配置 */
 async function loadConfig() {
     try {
         currentConfig = await ipcRenderer.invoke(IpcChannels.GET_CONFIG);
@@ -52,7 +58,7 @@ async function loadConfig() {
     }
 }
 
-// 更新配置 UI
+/** 更新配置 UI */
 function updateConfigUI() {
     if (!currentConfig) return;
     
@@ -63,26 +69,44 @@ function updateConfigUI() {
     elements.audioFormat.value = currentConfig.audioFormat;
 }
 
-// 设置事件监听
+/** 设置事件监听 */
 function setupEventListeners() {
-    // 视频选择
+    console.log('[Renderer] 开始设置事件监听器...');
+    console.log('[Renderer] elements.selectVideoBtn:', elements.selectVideoBtn);
+    console.log('[Renderer] elements.settingsBtn:', elements.settingsBtn);
+    console.log('[Renderer] elements.settingsModal:', elements.settingsModal);
+    
+    /** 视频选择 */
     elements.selectVideoBtn.addEventListener('click', selectVideo);
+    console.log('[Renderer] ✓ 已绑定 selectVideoBtn 点击事件');
     
-    // 处理按钮
+    /** 导入字幕 */
+    elements.importBtn.addEventListener('click', importSubtitles);
+    console.log('[Renderer] ✓ 已绑定 importBtn 点击事件');
+    
+    /** 处理按钮 */
     elements.processBtn.addEventListener('click', processVideo);
+    console.log('[Renderer] ✓ 已绑定 processBtn 点击事件');
     
-    // 导出按钮
+    /** 导出按钮 */
     elements.exportBtn.addEventListener('click', exportSubtitles);
+    console.log('[Renderer] ✓ 已绑定 exportBtn 点击事件');
     
-    // 添加说话人
+    /** 添加说话人 */
     elements.addSpeakerBtn.addEventListener('click', addSpeaker);
+    console.log('[Renderer] ✓ 已绑定 addSpeakerBtn 点击事件');
     
-    // 设置按钮
+    /** 设置按钮 */
     elements.settingsBtn?.addEventListener('click', () => {
+        console.log('[Renderer] 设置按钮被点击');
+        console.log('[Renderer] settingsModal:', elements.settingsModal);
+        console.log('[Renderer] settingsModal classes before:', elements.settingsModal?.classList.value);
         elements.settingsModal?.classList.remove('hidden');
+        console.log('[Renderer] settingsModal classes after:', elements.settingsModal?.classList.value);
     });
+    console.log('[Renderer] ✓ 已绑定 settingsBtn 点击事件');
     
-    // 设置对话框
+    /** 设置对话框 */
     document.querySelector('.close-btn')?.addEventListener('click', () => {
         elements.settingsModal?.classList.add('hidden');
     });
@@ -93,11 +117,13 @@ function setupEventListeners() {
     
     document.getElementById('saveSettingsBtn')?.addEventListener('click', saveSettings);
     
-    // 模型路径选择
+    /** 模型路径选择 */
     document.getElementById('selectWhisperModelBtn')?.addEventListener('click', async () => {
+        console.log('[Renderer] selectWhisperModelBtn 被点击');
         const path = await ipcRenderer.invoke(IpcChannels.SELECT_FILE, [
             { name: 'Model Files', extensions: ['bin'] }
         ]);
+        console.log('[Renderer] Whisper 模型路径:', path);
         if (path) elements.whisperModelPath!.value = path;
     });
     
@@ -117,10 +143,13 @@ function setupEventListeners() {
     });
 }
 
-// 选择视频
+/** 选择视频 */
 async function selectVideo() {
+    console.log('[Renderer] selectVideo() 被调用');
     try {
+        console.log('[Renderer] 正在调用 IPC:', IpcChannels.SELECT_VIDEO);
         const path = await ipcRenderer.invoke(IpcChannels.SELECT_VIDEO);
+        console.log('[Renderer] IPC 返回路径:', path);
         if (path) {
             currentVideoPath = path;
             elements.videoPath!.value = path;
@@ -328,7 +357,9 @@ function createSubtitleItem(segment: any, index: number) {
     return div;
 }
 
-// 添加说话人
+/**
+ * 添加说话人
+ */
 function addSpeaker() {
     const name = prompt('请输入说话人名称:');
     if (name && !speakers.includes(name)) {
@@ -337,7 +368,115 @@ function addSpeaker() {
     }
 }
 
-// 导出字幕
+/**
+ * 导入字幕
+ */
+async function importSubtitles() {
+    try {
+        const path = await ipcRenderer.invoke(IpcChannels.SELECT_FILE, [
+            { name: 'Subtitle Files', extensions: ['srt', 'vtt', 'json'] }
+        ]);
+        
+        if (!path) return;
+        
+        const content = await ipcRenderer.invoke(IpcChannels.READ_FILE, path);
+        
+        if (path.endsWith('.json')) {
+            currentSegments = JSON.parse(content);
+        } else if (path.endsWith('.srt')) {
+            currentSegments = parseSRT(content);
+        } else if (path.endsWith('.vtt')) {
+            currentSegments = parseVTT(content);
+        }
+        
+        displaySubtitles();
+        elements.exportBtn.disabled = false;
+        
+        alert(`成功导入 ${currentSegments.length} 条字幕`);
+    } catch (error: any) {
+        showError('导入字幕失败: ' + error.message);
+    }
+}
+
+/**
+ * 解析 SRT 格式
+ */
+function parseSRT(content: string): TranscriptSegment[] {
+    const segments: TranscriptSegment[] = [];
+    const blocks = content.trim().split('\n\n');
+    
+    for (const block of blocks) {
+        const lines = block.trim().split('\n');
+        if (lines.length < 3) continue;
+        
+        const timeMatch = lines[1].match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})/);
+        if (!timeMatch) continue;
+        
+        const startTime = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + 
+                         parseInt(timeMatch[3]) + parseInt(timeMatch[4]) / 1000;
+        const endTime = parseInt(timeMatch[5]) * 3600 + parseInt(timeMatch[6]) * 60 + 
+                       parseInt(timeMatch[7]) + parseInt(timeMatch[8]) / 1000;
+        
+        const text = lines.slice(2).join('\n');
+        
+        segments.push({
+            id: `seg_${Date.now()}_${segments.length}`,
+            startTime,
+            endTime,
+            text,
+            language: 'ja'
+        });
+    }
+    
+    return segments;
+}
+
+/**
+ * 解析 VTT 格式
+ */
+function parseVTT(content: string): TranscriptSegment[] {
+    const segments: TranscriptSegment[] = [];
+    const lines = content.split('\n');
+    let i = 0;
+    
+    while (i < lines.length && !lines[i].includes('-->')) {
+        i++;
+    }
+    
+    while (i < lines.length) {
+        const line = lines[i];
+        const timeMatch = line.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
+        
+        if (timeMatch) {
+            const startTime = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + 
+                             parseInt(timeMatch[3]) + parseInt(timeMatch[4]) / 1000;
+            const endTime = parseInt(timeMatch[5]) * 3600 + parseInt(timeMatch[6]) * 60 + 
+                           parseInt(timeMatch[7]) + parseInt(timeMatch[8]) / 1000;
+            
+            i++;
+            const textLines: string[] = [];
+            while (i < lines.length && lines[i].trim() !== '') {
+                textLines.push(lines[i]);
+                i++;
+            }
+            
+            segments.push({
+                id: `seg_${Date.now()}_${segments.length}`,
+                startTime,
+                endTime,
+                text: textLines.join('\n'),
+                language: 'ja'
+            });
+        }
+        i++;
+    }
+    
+    return segments;
+}
+
+/**
+ * 导出字幕
+ */
 async function exportSubtitles() {
     if (currentSegments.length === 0) return;
     
@@ -406,5 +545,9 @@ function showError(message: string): void {
     console.error(message);
 }
 
+console.log('[Renderer] ========== 脚本加载完成 ==========');
+console.log('[Renderer] 即将调用 init() 函数');
 // 启动应用
-init().catch(console.error);
+init().catch((error) => {
+    console.error('[Renderer] init() 执行出错:', error);
+});

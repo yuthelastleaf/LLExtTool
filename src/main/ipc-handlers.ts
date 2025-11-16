@@ -1,5 +1,5 @@
 import { ipcMain, dialog } from 'electron';
-import { mainWindow } from './main';
+import { getMainWindow } from './main';
 import { ConfigManager } from './config-manager';
 import { IpcChannels, ProcessingStatus } from '../shared/types';
 import * as path from 'path';
@@ -34,46 +34,80 @@ function initializeNativeModules() {
 }
 
 export function setupIpcHandlers() {
+  console.log('[Main] 开始设置 IPC 处理器...');
   // 在设置 IPC 处理器时初始化 native 模块
   initializeNativeModules();
   // 选择视频文件
   ipcMain.handle(IpcChannels.SELECT_VIDEO, async () => {
-    const result = await dialog.showOpenDialog({
+    console.log('[Main] SELECT_VIDEO 被调用');
+    const mainWindow = getMainWindow();
+    console.log('[Main] mainWindow:', mainWindow);
+    if (!mainWindow) {
+      console.log('[Main] mainWindow 为 null, 返回 null');
+      return null;
+    }
+    console.log('[Main] 正在打开视频选择对话框...');
+    const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
       filters: [
         { name: 'Video Files', extensions: ['mp4', 'avi', 'mkv', 'mov', 'flv', 'wmv'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     });
+    console.log('[Main] 对话框结果:', result);
     
     if (!result.canceled && result.filePaths.length > 0) {
+      console.log('[Main] 返回路径:', result.filePaths[0]);
       return result.filePaths[0];
     }
+    console.log('[Main] 用户取消选择');
     return null;
   });
 
   // 选择文件
   ipcMain.handle(IpcChannels.SELECT_FILE, async (_, filters) => {
-    const result = await dialog.showOpenDialog({
+    console.log('[Main] SELECT_FILE 被调用, filters:', filters);
+    const mainWindow = getMainWindow();
+    console.log('[Main] mainWindow:', mainWindow);
+    if (!mainWindow) {
+      console.log('[Main] mainWindow 为 null, 返回 null');
+      return null;
+    }
+    console.log('[Main] 正在打开文件选择对话框...');
+    const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
       filters: filters || [{ name: 'All Files', extensions: ['*'] }]
     });
+    console.log('[Main] 对话框结果:', result);
     
     if (!result.canceled && result.filePaths.length > 0) {
+      console.log('[Main] 返回路径:', result.filePaths[0]);
       return result.filePaths[0];
     }
+    console.log('[Main] 用户取消选择');
     return null;
   });
 
   // 选择文件夹
   ipcMain.handle(IpcChannels.SELECT_FOLDER, async () => {
-    const result = await dialog.showOpenDialog({
+    console.log('[Main] SELECT_FOLDER 被调用');
+    const mainWindow = getMainWindow();
+    console.log('[Main] mainWindow:', mainWindow);
+    if (!mainWindow) {
+      console.log('[Main] mainWindow 为 null, 返回 null');
+      return null;
+    }
+    console.log('[Main] 正在打开文件夹选择对话框...');
+    const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory']
     });
+    console.log('[Main] 对话框结果:', result);
     
     if (!result.canceled && result.filePaths.length > 0) {
+      console.log('[Main] 返回路径:', result.filePaths[0]);
       return result.filePaths[0];
     }
+    console.log('[Main] 用户取消选择');
     return null;
   });
 
@@ -222,10 +256,20 @@ export function setupIpcHandlers() {
       throw new Error(`保存字幕失败: ${error.message}`);
     }
   });
+
+  /** 读取文件 */
+  ipcMain.handle(IpcChannels.READ_FILE, async (_, filePath: string) => {
+    try {
+      return fs.readFileSync(filePath, 'utf-8');
+    } catch (error: any) {
+      throw new Error(`读取文件失败: ${error.message}`);
+    }
+  });
 }
 
-// 发送状态更新
+/** 发送状态更新 */
 export function sendProcessingStatus(status: ProcessingStatus) {
+  const mainWindow = getMainWindow();
   if (mainWindow) {
     mainWindow.webContents.send(IpcChannels.PROCESSING_STATUS, status);
   }

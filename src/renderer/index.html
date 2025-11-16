@@ -78,6 +78,7 @@
                 <div class="editor-header">
                     <h2>字幕编辑器</h2>
                     <div class="editor-actions">
+                        <button id="importBtn" class="btn btn-secondary">📥 导入字幕</button>
                         <button id="addSpeakerBtn" class="btn btn-secondary">➕ 添加说话人</button>
                         <button id="exportBtn" class="btn btn-primary" disabled>💾 导出字幕</button>
                     </div>
@@ -132,6 +133,15 @@
         </div>
     </div>
 
+    <script>
+        // 为 CommonJS 模块提供全局对象
+        if (typeof exports === 'undefined') {
+            var exports = {};
+        }
+        if (typeof module === 'undefined') {
+            var module = { exports: exports };
+        }
+    </script>
     <script src="renderer.js"></script>
 </body>
 </html>

@@ -59,6 +59,7 @@ export const IpcChannels = {
   // 文件操作
   SELECT_FILE: 'select-file',
   SELECT_FOLDER: 'select-folder',
+  READ_FILE: 'read-file',
   SAVE_SUBTITLES: 'save-subtitles',
   
   // 状态更新

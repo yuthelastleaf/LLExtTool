@@ -20,6 +20,10 @@ if (process.platform === 'win32') {
 
 let mainWindow: BrowserWindow | null = null;
 
+export function getMainWindow(): BrowserWindow | null {
+  return mainWindow;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -27,17 +31,14 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      preload: path.join(__dirname, '../renderer/preload.js'),
     },
     title: 'LLExtTool - 视频字幕提取工具',
   });
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // 开发环境打开开发者工具
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
-  }
+  // 始终打开开发者工具以便调试
+  mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -65,5 +66,3 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-
-export { mainWindow };
