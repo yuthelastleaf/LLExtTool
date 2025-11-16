@@ -154,6 +154,11 @@ async function processVideo() {
     elements.statusPanel!.classList.remove('hidden');
     
     try {
+        // 检查模型路径
+        if (!currentConfig?.whisperModelPath) {
+            throw new Error('请先在设置中配置 Whisper 模型路径');
+        }
+        
         // 1. 提取音频
         updateProcessingStatus({
             stage: 'extracting',

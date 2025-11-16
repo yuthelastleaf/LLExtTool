@@ -123,12 +123,30 @@ export function setupIpcHandlers() {
   // 加载 Whisper 模型
   ipcMain.handle(IpcChannels.LOAD_WHISPER_MODEL, async (_, modelPath: string) => {
     try {
+      console.log(`[Whisper] Loading model from: ${modelPath}`);
+      
       if (!llwhisper) {
         throw new Error('llwhisper module not loaded');
       }
-      await llwhisper.loadModel(modelPath);
+      
+      // 检查文件是否存在
+      const fs = require('fs');
+      if (!fs.existsSync(modelPath)) {
+        throw new Error(`Model file not found: ${modelPath}`);
+      }
+      
+      const stats = fs.statSync(modelPath);
+      console.log(`[Whisper] Model file size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+      
+      const result = await llwhisper.loadModel(modelPath);
+      if (!result) {
+        throw new Error('loadModel returned false');
+      }
+      
+      console.log('[Whisper] Model loaded successfully');
       return true;
     } catch (error: any) {
+      console.error('[Whisper] Load error:', error);
       throw new Error(`加载 Whisper 模型失败: ${error.message}`);
     }
   });

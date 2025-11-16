@@ -15,8 +15,15 @@ export class ConfigManager {
   }
 
   private getDefaultConfig(): AppConfig {
+    // 默认模型路径（相对于项目根目录）
+    const appRoot = process.env.NODE_ENV === 'development' 
+      ? path.resolve(__dirname, '..', '..')
+      : path.dirname(app.getPath('exe'));
+    
+    const defaultModelPath = path.join(appRoot, 'native', 'whisper.cpp', 'models', 'ggml-large-v2-f16.bin');
+    
     return {
-      whisperModelPath: '',
+      whisperModelPath: fs.existsSync(defaultModelPath) ? defaultModelPath : '',
       translationModelPath: '',
       defaultSourceLanguage: 'ja',
       defaultTargetLanguage: 'zh',
