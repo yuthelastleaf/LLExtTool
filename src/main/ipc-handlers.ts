@@ -23,8 +23,6 @@ function initializeNativeModules() {
     console.error('[Native] ✗ Failed to load llvideo:', error.message);
   }
 
-  // llwhisper 暂时不加载 - binding.gyp 中路径问题待解决
-  /*
   try {
     console.log('[Native] Loading llwhisper with bindings...');
     llwhisper = bindings('llwhisper');
@@ -33,8 +31,6 @@ function initializeNativeModules() {
   } catch (error: any) {
     console.error('[Native] ✗ Failed to load llwhisper:', error.message);
   }
-  */
-  console.log('[Native] llwhisper loading skipped - path issues in binding.gyp')
 }
 
 export function setupIpcHandlers() {

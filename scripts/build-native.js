@@ -29,49 +29,111 @@ try {
     process.exit(1);
   }
 
-  // 使用 cmake-js 构建
-  console.log('Step 2: Building with cmake-js...');
-  execSync('npx cmake-js compile --runtime electron --runtime-version 27.3.11 --arch x64', {
-    cwd: rootDir,
-    stdio: 'inherit'
-  });
-  console.log('✓ Build completed\n');
-
-  // If a node-gyp binding.gyp exists in native/, optionally build with node-gyp
-  const nativeBinding = path.join(rootDir, 'native', 'binding.gyp');
-  if (fs.existsSync(nativeBinding)) {
+  // 步骤 2: 先复制 FFmpeg 头文件到 whisper.cpp/include（解决 electron-rebuild 找不到的问题）
+  console.log('Step 2: Copying FFmpeg headers...');
+  const ffmpegIncludeSrc = path.join(rootDir, 'native', 'ffmpeg', 'include');
+  const whisperIncludeDst = path.join(rootDir, 'native', 'whisper.cpp', 'include');
+  
+  if (fs.existsSync(ffmpegIncludeSrc) && fs.existsSync(whisperIncludeDst)) {
     try {
-      console.log('Step 3: Found native/binding.gyp - building with node-gyp for node-addon style...');
-      execSync('node-gyp rebuild', { cwd: path.join(rootDir, 'native'), stdio: 'inherit' });
-      console.log('✓ node-gyp build completed\n');
+      // 递归复制 FFmpeg 头文件（libavcodec, libavformat, etc.）
+      const copyRecursive = (src, dst) => {
+        if (!fs.existsSync(dst)) {
+          fs.mkdirSync(dst, { recursive: true });
+        }
+        const entries = fs.readdirSync(src, { withFileTypes: true });
+        for (const entry of entries) {
+          const srcPath = path.join(src, entry.name);
+          const dstPath = path.join(dst, entry.name);
+          if (entry.isDirectory()) {
+            copyRecursive(srcPath, dstPath);
+          } else {
+            fs.copyFileSync(srcPath, dstPath);
+          }
+        }
+      };
+      copyRecursive(ffmpegIncludeSrc, whisperIncludeDst);
+      console.log(`✓ FFmpeg headers copied to ${whisperIncludeDst}\n`);
     } catch (e) {
-      console.warn('⚠ node-gyp build failed (continuing):', e.message);
+      console.warn('⚠ Failed to copy FFmpeg headers:', e.message);
     }
   }
 
-  // 检查输出文件
-  console.log('Step 5: Verifying output files...');
+  // 步骤 3: 使用 electron-rebuild 编译（现在应该能找到所有头文件）
+  console.log('Step 3: Building with electron-rebuild...');
+  const electronRebuildSuccess = [];
+  const electronRebuildFailed = [];
+  
+  try {
+    execSync('npx electron-rebuild -f -v 27.3.11', {
+      cwd: rootDir,
+      stdio: 'inherit'
+    });
+    console.log('✓ electron-rebuild completed\n');
+    
+    // 检查哪些模块成功编译
+    const releaseDir = path.join(buildDir, 'Release');
+    if (fs.existsSync(path.join(releaseDir, 'llvideo.node'))) {
+      electronRebuildSuccess.push('llvideo');
+    }
+    if (fs.existsSync(path.join(releaseDir, 'llwhisper.node'))) {
+      electronRebuildSuccess.push('llwhisper');
+    }
+  } catch (e) {
+    console.warn('⚠ electron-rebuild encountered errors\n');
+  }
+
+  // 步骤 4: 备份 electron-rebuild 的成功输出（防止被覆盖）
+  console.log('Step 4: Backing up electron-rebuild output...');
   const releaseDir = path.join(buildDir, 'Release');
+  const backupDir = path.join(buildDir, 'electron-rebuild-backup');
+  
+  if (!fs.existsSync(backupDir)) {
+    fs.mkdirSync(backupDir, { recursive: true });
+  }
+  
+  if (fs.existsSync(releaseDir)) {
+    const nodeFiles = fs.readdirSync(releaseDir).filter(f => f.endsWith('.node'));
+    nodeFiles.forEach(file => {
+      const srcPath = path.join(releaseDir, file);
+      const backupPath = path.join(backupDir, file);
+      fs.copyFileSync(srcPath, backupPath);
+      console.log(`  Backed up: ${file}`);
+    });
+  }
+  console.log('');
+
+  // 步骤 5: 恢复 electron-rebuild 的输出（确保不被覆盖）
+  console.log('Step 5: Restoring electron-rebuild modules...');
+  if (fs.existsSync(backupDir)) {
+    const backupFiles = fs.readdirSync(backupDir).filter(f => f.endsWith('.node'));
+    backupFiles.forEach(file => {
+      const backupPath = path.join(backupDir, file);
+      const targetPath = path.join(releaseDir, file);
+      fs.copyFileSync(backupPath, targetPath);
+      console.log(`  Restored: ${file}`);
+    });
+  }
+  console.log('');
+
+  // 检查输出文件
+  console.log('Step 6: Verifying output files...');
   const llvideoNode = path.join(releaseDir, 'llvideo.node');
   const llwhisperNode = path.join(releaseDir, 'llwhisper.node');
 
   if (fs.existsSync(llvideoNode)) {
     console.log(`✓ llvideo.node: ${llvideoNode}`);
   } else {
-    console.log(`⚠ llvideo.node not found (FFmpeg may not be configured)`);
+    console.log(`⚠ llvideo.node not found`);
   }
 
   if (fs.existsSync(llwhisperNode)) {
     console.log(`✓ llwhisper.node: ${llwhisperNode}`);
   } else {
-    console.log(`⚠ llwhisper.node not found (Whisper may not be configured)`);
+    console.log(`⚠ llwhisper.node not found`);
   }
 
-  console.log('\n🎉 Native modules build completed successfully!');
-  console.log('\nNext steps:');
-  console.log('1. Download FFmpeg shared libraries to native/ffmpeg/');
-  console.log('2. Build whisper.cpp and place it in native/whisper.cpp/');
-  console.log('3. Run this script again to build the modules');
+  console.log('\n🎉 Native modules build completed with electron-rebuild!');
 
 } catch (error) {
   console.error('\n❌ Build failed:', error.message);

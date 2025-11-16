@@ -37,10 +37,10 @@
             {
               "destination": "<(module_root_dir)/build/Release/",
               "files": [
-                "native/ffmpeg/bin/avcodec-60.dll",
-                "native/ffmpeg/bin/avformat-60.dll",
-                "native/ffmpeg/bin/avutil-58.dll",
-                "native/ffmpeg/bin/swresample-4.dll"
+                "native/ffmpeg/bin/avcodec-61.dll",
+                "native/ffmpeg/bin/avformat-61.dll",
+                "native/ffmpeg/bin/avutil-59.dll",
+                "native/ffmpeg/bin/swresample-5.dll"
               ]
             }
           ]
@@ -56,7 +56,10 @@
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")",
         "native/include",
-        "native/whisper.cpp"
+        "native/whisper.cpp/include",
+        "native/whisper.cpp/ggml/include",
+        "native/whisper.cpp/build/_deps/ggml-src/include",
+        "native/ffmpeg/include"
       ],
       "dependencies": [
         "<!(node -p \"require('node-addon-api').gyp\")"
@@ -75,13 +78,21 @@
       "conditions": [
         ["OS=='win'", {
           "libraries": [
-            "../native/whisper.cpp/build/bin/Release/whisper.lib"
+            "../native/whisper.cpp/build/src/Release/whisper.lib",
+            "../native/ffmpeg/lib/avcodec.lib",
+            "../native/ffmpeg/lib/avformat.lib",
+            "../native/ffmpeg/lib/avutil.lib",
+            "../native/ffmpeg/lib/swresample.lib"
           ],
           "copies": [
             {
               "destination": "<(module_root_dir)/build/Release/",
               "files": [
-                "native/whisper.cpp/build/bin/Release/whisper.dll"
+                "native/whisper.cpp/build/bin/Release/whisper.dll",
+                "native/whisper.cpp/build/bin/Release/ggml.dll",
+                "native/whisper.cpp/build/bin/Release/ggml-base.dll",
+                "native/whisper.cpp/build/bin/Release/ggml-cpu.dll",
+                "native/whisper.cpp/build/bin/Release/ggml-cuda.dll"
               ]
             }
           ]
