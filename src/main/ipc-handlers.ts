@@ -2,6 +2,7 @@ import { ipcMain, dialog } from 'electron';
 import { getMainWindow } from './main';
 import { ConfigManager } from './config-manager';
 import { IpcChannels, ProcessingStatus } from '../shared/types';
+import { modelDownloader } from './model-downloader';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -28,6 +29,26 @@ function initializeNativeModules() {
     llwhisper = bindings('llwhisper');
     console.log('[Native] ✓ llwhisper loaded');
     console.log('[Native] llwhisper exports:', Object.keys(llwhisper));
+    
+    // 加载翻译模型
+    try {
+      const translateModelPath = path.join(
+        process.cwd(),
+        'native',
+        'models',
+        'opus-mt-ja-zh-ct2'
+      );
+      
+      if (fs.existsSync(translateModelPath)) {
+        console.log('[Native] Loading translation model from:', translateModelPath);
+        llwhisper.loadTranslateModel(translateModelPath, 'cpu');
+        console.log('[Native] ✓ Translation model loaded');
+      } else {
+        console.log('[Native] ⚠ Translation model not found at:', translateModelPath);
+      }
+    } catch (transError: any) {
+      console.error('[Native] ✗ Failed to load translation model:', transError.message);
+    }
   } catch (error: any) {
     console.error('[Native] ✗ Failed to load llwhisper:', error.message);
   }
@@ -37,6 +58,8 @@ export function setupIpcHandlers() {
   console.log('[Main] 开始设置 IPC 处理器...');
   // 在设置 IPC 处理器时初始化 native 模块
   initializeNativeModules();
+  // 设置模型管理处理器
+  setupModelHandlers();
   // 选择视频文件
   ipcMain.handle(IpcChannels.SELECT_VIDEO, async () => {
     console.log('[Main] SELECT_VIDEO 被调用');
@@ -207,21 +230,46 @@ export function setupIpcHandlers() {
   // 翻译文本
   ipcMain.handle(IpcChannels.TRANSLATE_TEXT, async (_, text: string, sourceLang: string, targetLang: string) => {
     try {
-      // TODO: 这里需要集成翻译模型
-      // 暂时返回占位文本
-      return `[翻译] ${text}`;
+      if (!llwhisper) {
+        console.warn('[Translate] llwhisper module not loaded, returning original text');
+        return text; // 翻译模块未加载，返回原文
+      }
+      
+      console.log(`[Translate] Translating: ${text.substring(0, 50)}...`);
+      const result = llwhisper.translateText(text, {
+        beam_size: 4,
+        length_penalty: 1.0
+      });
+      
+      console.log(`[Translate] Result: ${result.substring(0, 50)}...`);
+      return result;
     } catch (error: any) {
-      throw new Error(`翻译失败: ${error.message}`);
+      console.error('[Translate] Error:', error.message);
+      console.warn('[Translate] Returning original text due to translation failure');
+      return text; // 翻译失败，返回原文
     }
   });
 
   // 批量翻译
   ipcMain.handle(IpcChannels.BATCH_TRANSLATE, async (_, texts: string[], sourceLang: string, targetLang: string) => {
     try {
-      // TODO: 批量翻译实现
-      return texts.map(text => `[翻译] ${text}`);
+      if (!llwhisper) {
+        console.warn('[Translate] llwhisper module not loaded, returning original texts');
+        return texts; // 翻译模块未加载，返回原文
+      }
+      
+      console.log(`[Translate] Batch translating ${texts.length} texts...`);
+      const results = llwhisper.translateBatch(texts, {
+        beam_size: 4,
+        max_batch_size: 32
+      });
+      
+      console.log(`[Translate] Batch translation completed: ${results.length} results`);
+      return results;
     } catch (error: any) {
-      throw new Error(`批量翻译失败: ${error.message}`);
+      console.error('[Translate] Batch error:', error.message);
+      console.warn('[Translate] Returning original texts due to translation failure');
+      return texts; // 翻译失败，返回原文
     }
   });
 
@@ -337,4 +385,73 @@ function formatTime(seconds: number): string {
 
 function pad(num: number, size: number = 2): string {
   return num.toString().padStart(size, '0');
+}
+
+// 模型管理 IPC 处理器
+function setupModelHandlers() {
+  // 获取模型状态
+  ipcMain.handle(IpcChannels.GET_MODELS_STATUS, async () => {
+    try {
+      return modelDownloader.getModelsStatus();
+    } catch (error: any) {
+      console.error('[Models] Error getting status:', error.message);
+      throw error;
+    }
+  });
+
+  // 下载模型
+  ipcMain.handle(IpcChannels.DOWNLOAD_MODEL, async (_, modelName: string) => {
+    try {
+      const models = modelDownloader.getModelsStatus();
+      const model = models.find(m => m.name === modelName);
+      
+      if (!model) {
+        throw new Error(`Model not found: ${modelName}`);
+      }
+
+      console.log(`[Models] Downloading ${modelName}...`);
+      
+      const modelPath = await modelDownloader.downloadModel(model, (progress, downloaded, total) => {
+        // 发送进度更新到渲染进程
+        const mainWindow = getMainWindow();
+        if (mainWindow) {
+          mainWindow.webContents.send('model-download-progress', {
+            modelName,
+            progress,
+            downloaded,
+            total
+          });
+        }
+      });
+
+      console.log(`[Models] ✓ Downloaded ${modelName} to ${modelPath}`);
+      return { success: true, path: modelPath };
+    } catch (error: any) {
+      console.error(`[Models] ✗ Download failed:`, error.message);
+      throw new Error(`模型下载失败: ${error.message}`);
+    }
+  });
+
+  // 删除模型
+  ipcMain.handle(IpcChannels.DELETE_MODEL, async (_, modelName: string) => {
+    try {
+      const success = modelDownloader.deleteModel(modelName);
+      if (success) {
+        console.log(`[Models] Deleted ${modelName}`);
+      }
+      return { success };
+    } catch (error: any) {
+      console.error(`[Models] Delete failed:`, error.message);
+      throw error;
+    }
+  });
+
+  // 获取模型路径
+  ipcMain.handle(IpcChannels.GET_MODEL_PATH, async (_, modelName: string) => {
+    try {
+      return modelDownloader.getModelPath(modelName);
+    } catch (error: any) {
+      throw error;
+    }
+  });
 }

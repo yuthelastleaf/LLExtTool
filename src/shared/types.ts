@@ -65,6 +65,12 @@ export const IpcChannels = {
   // 状态更新
   PROCESSING_STATUS: 'processing-status',
   ERROR: 'error',
+  
+  // 模型管理
+  GET_MODELS_STATUS: 'get-models-status',
+  DOWNLOAD_MODEL: 'download-model',
+  DELETE_MODEL: 'delete-model',
+  GET_MODEL_PATH: 'get-model-path',
 } as const;
 
 // 字幕导出格式
@@ -76,4 +82,25 @@ export interface ExportOptions {
   includeOriginal: boolean;
   includeTranslation: boolean;
   includeSpeaker: boolean;
+}
+
+// 模型信息
+export interface ModelInfo {
+  name: string;
+  displayName: string;
+  url: string;
+  size: number;
+  required: boolean;
+  description: string;
+  downloaded: boolean;
+  path: string;
+}
+
+// 下载进度
+export interface DownloadProgress {
+  modelName: string;
+  progress: number;
+  downloaded: number;
+  total: number;
+  speed?: number;
 }

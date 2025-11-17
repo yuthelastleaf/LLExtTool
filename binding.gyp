@@ -51,7 +51,8 @@
       "target_name": "llwhisper",
       "sources": [
         "native/src/llwhisper.cpp",
-        "native/src/whisper_wrapper.cpp"
+        "native/src/whisper_wrapper.cpp",
+        "native/src/translate_wrapper.cpp"
       ],
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")",
@@ -59,7 +60,8 @@
         "native/whisper.cpp/include",
         "native/whisper.cpp/ggml/include",
         "native/whisper.cpp/build/_deps/ggml-src/include",
-        "native/ffmpeg/include"
+        "native/ffmpeg/include",
+        "native/ctranslate2/include"
       ],
       "dependencies": [
         "<!(node -p \"require('node-addon-api').gyp\")"
@@ -82,7 +84,8 @@
             "../native/ffmpeg/lib/avcodec.lib",
             "../native/ffmpeg/lib/avformat.lib",
             "../native/ffmpeg/lib/avutil.lib",
-            "../native/ffmpeg/lib/swresample.lib"
+            "../native/ffmpeg/lib/swresample.lib",
+            "../native/ctranslate2/lib/ctranslate2.lib"
           ],
           "copies": [
             {
@@ -92,7 +95,8 @@
                 "native/whisper.cpp/build/bin/Release/ggml.dll",
                 "native/whisper.cpp/build/bin/Release/ggml-base.dll",
                 "native/whisper.cpp/build/bin/Release/ggml-cpu.dll",
-                "native/whisper.cpp/build/bin/Release/ggml-cuda.dll"
+                "native/whisper.cpp/build/bin/Release/ggml-cuda.dll",
+                "native/ctranslate2/bin/ctranslate2.dll"
               ]
             }
           ]

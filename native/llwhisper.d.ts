@@ -153,3 +153,68 @@ export function exportToJson(segments: TranscriptSegment[]): string;
  * @returns LRC formatted text
  */
 export function exportToLrc(segments: TranscriptSegment[]): string;
+
+/**
+ * Translation parameters for CTranslate2
+ */
+export interface TranslateParams {
+  /** Beam search width (default: 4) */
+  beam_size?: number;
+  /** Length penalty for beam search (default: 1.0) */
+  length_penalty?: number;
+  /** Maximum batch size (default: 32) */
+  max_batch_size?: number;
+}
+
+/**
+ * Load translation model from CTranslate2 format
+ * 
+ * @param modelPath Path to the CTranslate2 model directory
+ * @param device Device to use ('cpu', 'cuda', or 'auto')
+ * @returns true if model loaded successfully
+ * @throws Error if model not found or invalid
+ * 
+ * @example
+ * ```typescript
+ * whisper.loadTranslateModel('native/models/opus-mt-ja-zh-ct2', 'cpu');
+ * ```
+ */
+export function loadTranslateModel(modelPath: string, device?: 'cpu' | 'cuda' | 'auto'): boolean;
+
+/**
+ * Translate single text
+ * 
+ * @param text Text to translate
+ * @param params Optional translation parameters
+ * @returns Translated text
+ * @throws Error if model not loaded or translation fails
+ * 
+ * @example
+ * ```typescript
+ * const result = whisper.translateText('こんにちは', {
+ *   beam_size: 4,
+ *   length_penalty: 1.0
+ * });
+ * console.log(result); // "你好"
+ * ```
+ */
+export function translateText(text: string, params?: TranslateParams): string;
+
+/**
+ * Translate multiple texts in batch
+ * 
+ * @param texts Array of texts to translate
+ * @param params Optional translation parameters
+ * @returns Array of translated texts
+ * @throws Error if model not loaded or translation fails
+ * 
+ * @example
+ * ```typescript
+ * const results = whisper.translateBatch(['こんにちは', 'ありがとう'], {
+ *   beam_size: 4,
+ *   max_batch_size: 32
+ * });
+ * console.log(results); // ["你好", "谢谢"]
+ * ```
+ */
+export function translateBatch(texts: string[], params?: TranslateParams): string[];

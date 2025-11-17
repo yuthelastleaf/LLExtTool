@@ -1,10 +1,14 @@
 #include <napi.h>
 #include "../include/whisper_wrapper.h"
+#include "../include/translate_wrapper.h"
 
 using namespace Napi;
 
 // Whisper Wrapper 实例
 static llwhisper::WhisperWrapper* whisperWrapper = nullptr;
+
+// 翻译 Wrapper 实例
+static lltranslate::TranslateWrapper* translateWrapper = nullptr;
 
 // 加载模型
 Napi::Value LoadModel(const Napi::CallbackInfo& info) {
@@ -270,8 +274,139 @@ Napi::Value ExportToLrc(const Napi::CallbackInfo& info) {
     return env.Null();
 }
 
+// ============ 翻译功能 ============
+
+/** 加载翻译模型 */
+Napi::Value LoadTranslateModel(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected string argument (modelPath)").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    std::string modelPath = info[0].As<Napi::String>().Utf8Value();
+    std::string device = "cpu";
+    
+    if (info.Length() >= 2 && info[1].IsString()) {
+        device = info[1].As<Napi::String>().Utf8Value();
+    }
+    
+    try {
+        if (translateWrapper == nullptr) {
+            translateWrapper = new lltranslate::TranslateWrapper();
+        }
+        
+        bool result = translateWrapper->loadModel(modelPath, device);
+        
+        if (!result) {
+            Napi::Error::New(env, "Failed to load translation model").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        
+        return Napi::Boolean::New(env, true);
+    } catch (const std::exception& e) {
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+/** 翻译单个文本 */
+Napi::Value TranslateText(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected string argument").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    std::string text = info[0].As<Napi::String>().Utf8Value();
+    
+    try {
+        if (translateWrapper == nullptr || !translateWrapper->isModelLoaded()) {
+            Napi::Error::New(env, "Translation model not loaded").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        
+        lltranslate::TranslateParams params;
+        
+        // 解析可选参数
+        if (info.Length() >= 2 && info[1].IsObject()) {
+            Napi::Object options = info[1].As<Napi::Object>();
+            
+            if (options.Has("beam_size")) {
+                params.beam_size = options.Get("beam_size").As<Napi::Number>().Int32Value();
+            }
+            if (options.Has("length_penalty")) {
+                params.length_penalty = options.Get("length_penalty").As<Napi::Number>().FloatValue();
+            }
+            if (options.Has("max_batch_size")) {
+                params.max_batch_size = options.Get("max_batch_size").As<Napi::Number>().Int32Value();
+            }
+        }
+        
+        std::string result = translateWrapper->translate(text, params);
+        return Napi::String::New(env, result);
+        
+    } catch (const std::exception& e) {
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+/** 批量翻译 */
+Napi::Value TranslateBatch(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    if (info.Length() < 1 || !info[0].IsArray()) {
+        Napi::TypeError::New(env, "Expected array of strings").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    Napi::Array textsArray = info[0].As<Napi::Array>();
+    std::vector<std::string> texts;
+    
+    for (uint32_t i = 0; i < textsArray.Length(); i++) {
+        texts.push_back(textsArray.Get(i).As<Napi::String>().Utf8Value());
+    }
+    
+    try {
+        if (translateWrapper == nullptr || !translateWrapper->isModelLoaded()) {
+            Napi::Error::New(env, "Translation model not loaded").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        
+        lltranslate::TranslateParams params;
+        
+        if (info.Length() >= 2 && info[1].IsObject()) {
+            Napi::Object options = info[1].As<Napi::Object>();
+            
+            if (options.Has("beam_size")) {
+                params.beam_size = options.Get("beam_size").As<Napi::Number>().Int32Value();
+            }
+            if (options.Has("length_penalty")) {
+                params.length_penalty = options.Get("length_penalty").As<Napi::Number>().FloatValue();
+            }
+        }
+        
+        std::vector<std::string> results = translateWrapper->translateBatch(texts, params);
+        
+        Napi::Array resultArray = Napi::Array::New(env, results.size());
+        for (size_t i = 0; i < results.size(); i++) {
+            resultArray.Set(i, Napi::String::New(env, results[i]));
+        }
+        
+        return resultArray;
+        
+    } catch (const std::exception& e) {
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
 // 模块初始化
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
+    // Whisper 功能
     exports.Set("loadModel", Napi::Function::New(env, LoadModel));
     exports.Set("transcribe", Napi::Function::New(env, Transcribe));
     exports.Set("exportToTxt", Napi::Function::New(env, ExportToTxt));
@@ -279,6 +414,12 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("exportToVtt", Napi::Function::New(env, ExportToVtt));
     exports.Set("exportToJson", Napi::Function::New(env, ExportToJson));
     exports.Set("exportToLrc", Napi::Function::New(env, ExportToLrc));
+    
+    // 翻译功能
+    exports.Set("loadTranslateModel", Napi::Function::New(env, LoadTranslateModel));
+    exports.Set("translateText", Napi::Function::New(env, TranslateText));
+    exports.Set("translateBatch", Napi::Function::New(env, TranslateBatch));
+    
     return exports;
 }
 

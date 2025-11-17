@@ -262,20 +262,27 @@ async function processVideo() {
             elements.sourceLanguage!.value
         );
         
-        // 4. 翻译
+        // 4. 翻译（如果翻译失败会返回原文）
         updateProcessingStatus({
             stage: 'translating',
             progress: 70,
-            message: '正在翻译字幕...'
+            message: '正在翻译字幕...（翻译模块开发中）'
         });
         
-        const texts = segments.map((seg: any) => seg.text);
-        const translations = await ipcRenderer.invoke(
-            IpcChannels.BATCH_TRANSLATE,
-            texts,
-            elements.sourceLanguage!.value,
-            elements.targetLanguage!.value
-        );
+        let translations: string[];
+        try {
+            const texts = segments.map((seg: any) => seg.text);
+            translations = await ipcRenderer.invoke(
+                IpcChannels.BATCH_TRANSLATE,
+                texts,
+                elements.sourceLanguage!.value,
+                elements.targetLanguage!.value
+            );
+            console.log('[Renderer] Translation completed');
+        } catch (error: any) {
+            console.warn('[Renderer] Translation failed, using original text:', error.message);
+            translations = segments.map((seg: any) => seg.text); // 使用原文
+        }
         
         // 合并结果
         currentSegments = segments.map((seg: any, index: number) => ({

@@ -16,8 +16,12 @@
     "watch:assets": "node scripts/watch-assets.js",
     "start": "npm run build && electron .",
     "dev": "concurrently \"npm run watch\" \"npm run watch:assets\" \"wait-on dist/main/main.js dist/renderer/index.html && electron .\"",
-    "package": "electron-builder",
-    "clean": "rimraf dist build"
+    "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win --x64",
+    "package:dir": "npm run build && electron-builder --dir",
+    "package:portable": "npm run build && electron-builder --win portable",
+    "package:nsis": "npm run build && electron-builder --win nsis",
+    "clean": "rimraf dist build release"
   },
   "keywords": [
     "electron",
@@ -47,17 +51,56 @@
     "appId": "com.llexttool.app",
     "productName": "LLExtTool",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "assets"
     },
     "files": [
       "dist/**/*",
-      "native/**/*",
-      "models/**/*"
+      "native/**/*.node",
+      "build/Release/**/*.node",
+      "build/Release/**/*.dll",
+      "!native/whisper.cpp/build/**/*",
+      "!native/ctranslate2-source/**/*",
+      "!native/ffmpeg/bin/**/*.exe",
+      "!native/**/*.lib",
+      "!native/**/*.obj",
+      "!native/**/*.pdb"
+    ],
+    "extraResources": [
+      {
+        "from": "native/ffmpeg/bin",
+        "to": "native/ffmpeg/bin",
+        "filter": ["*.dll"]
+      },
+      {
+        "from": "native/whisper.cpp/build/bin/Release",
+        "to": "native/whisper.cpp/build/bin/Release",
+        "filter": ["*.dll"]
+      },
+      {
+        "from": "native/ctranslate2/bin",
+        "to": "native/ctranslate2/bin",
+        "filter": ["*.dll"]
+      }
+    ],
+    "asarUnpack": [
+      "**/*.node",
+      "**/*.dll"
     ],
     "win": {
       "target": [
-        "nsis"
-      ]
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "${productName}-${version}-portable.${ext}",
+      "signingHashAlgorithms": [],
+      "sign": null
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}.exe"
     }
   }
 }

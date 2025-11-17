@@ -37,18 +37,19 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // 始终打开开发者工具以便调试
-  mainWindow.webContents.openDevTools();
+  // 开发模式下打开开发者工具
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools();
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
-// 注释掉 GPU 禁用，因为 Whisper 需要 CUDA GPU 支持
-// app.disableHardwareAcceleration();
-// app.commandLine.appendSwitch('disable-gpu');
-// app.commandLine.appendSwitch('disable-software-rasterizer');
+// 禁用 Electron 的 GPU 渲染进程（不影响 Whisper 的 CUDA 使用）
+// 这可以避免某些显卡驱动兼容性问题
+app.disableHardwareAcceleration();
 
 app.whenReady().then(() => {
   createWindow();
