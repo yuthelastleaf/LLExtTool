@@ -41,6 +41,7 @@ export interface ProcessingStatus {
 export const IpcChannels = {
   // 视频处理
   SELECT_VIDEO: 'select-video',
+  SELECT_AUDIO: 'select-audio',
   EXTRACT_AUDIO: 'extract-audio',
   GET_VIDEO_INFO: 'get-video-info',
   
@@ -60,6 +61,7 @@ export const IpcChannels = {
   SELECT_FILE: 'select-file',
   SELECT_FOLDER: 'select-folder',
   READ_FILE: 'read-file',
+  READ_AUDIO_BUFFER: 'read-audio-buffer',
   SAVE_SUBTITLES: 'save-subtitles',
   
   // 状态更新

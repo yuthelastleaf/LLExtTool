@@ -86,6 +86,25 @@ export function setupIpcHandlers() {
     console.log('[Main] 用户取消选择');
     return null;
   });
+  
+  // 选择音频文件
+  ipcMain.handle(IpcChannels.SELECT_AUDIO, async () => {
+    const mainWindow = getMainWindow();
+    if (!mainWindow) return null;
+    
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'Audio Files', extensions: ['wav', 'mp3', 'flac', 'm4a', 'aac', 'ogg'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths[0];
+    }
+    return null;
+  });
 
   // 选择文件
   ipcMain.handle(IpcChannels.SELECT_FILE, async (_, filters) => {
@@ -208,23 +227,43 @@ export function setupIpcHandlers() {
     }
   });
 
-  // 转录音频
-  ipcMain.handle(IpcChannels.TRANSCRIBE_AUDIO, async (_, audioPath: string, language: 'ja' | 'en') => {
-    try {
-      if (!llwhisper) {
-        throw new Error('llwhisper module not loaded');
-      }
-      const segments = await llwhisper.transcribe(audioPath, language);
-      
-      // 生成唯一 ID
-      return segments.map((seg: any, index: number) => ({
-        id: `seg_${Date.now()}_${index}`,
-        ...seg,
-        language
-      }));
-    } catch (error: any) {
-      throw new Error(`音频转录失败: ${error.message}`);
+  // 转录音频 - 异步处理，不阻塞
+  ipcMain.handle(IpcChannels.TRANSCRIBE_AUDIO, async (event, audioPath: string, language: 'ja' | 'en') => {
+    if (!llwhisper) {
+      throw new Error('llwhisper module not loaded');
     }
+    
+    // 立即返回，告诉渲染进程已经开始处理
+    console.log('[Whisper] Starting transcription in background...');
+    event.sender.send('transcribe-started', { audioPath, language });
+    
+    // 在后台线程处理（使用 setImmediate 让出事件循环）
+    setImmediate(async () => {
+      try {
+        console.log('[Whisper] Transcribing audio...');
+        const segments = await llwhisper.transcribe(audioPath, language);
+        
+        // 生成唯一 ID
+        const result = segments.map((seg: any, index: number) => ({
+          id: `seg_${Date.now()}_${index}`,
+          ...seg,
+          language
+        }));
+        
+        console.log('[Whisper] Transcription completed, sending result...');
+        // 转录完成，发送结果事件
+        event.sender.send('transcribe-completed', { success: true, segments: result });
+      } catch (error: any) {
+        console.error('[Whisper] Transcription failed:', error.message);
+        event.sender.send('transcribe-completed', { 
+          success: false, 
+          error: `音频转录失败: ${error.message}` 
+        });
+      }
+    });
+    
+    // 立即返回 null，表示异步处理中
+    return null;
   });
 
   // 翻译文本
@@ -313,6 +352,16 @@ export function setupIpcHandlers() {
       throw new Error(`读取文件失败: ${error.message}`);
     }
   });
+  
+  /** 读取音频文件为 ArrayBuffer */
+  ipcMain.handle(IpcChannels.READ_AUDIO_BUFFER, async (_, filePath: string) => {
+    try {
+      const buffer = fs.readFileSync(filePath);
+      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    } catch (error: any) {
+      throw new Error(`读取音频文件失败: ${error.message}`);
+    }
+  });
 }
 
 /** 发送状态更新 */
@@ -330,20 +379,22 @@ function generateSRT(segments: any[], options: any): string {
     content += `${index + 1}\n`;
     content += `${formatTime(seg.startTime)} --> ${formatTime(seg.endTime)}\n`;
     
-    if (options.includeSpeaker && seg.speaker) {
-      content += `[${seg.speaker}] `;
+    // 说话人信息（统一格式，没有则显示为空）
+    if (options.includeSpeaker) {
+      const speaker = seg.speaker || '';
+      content += `[${speaker}]\n`;
     }
     
-    if (options.includeOriginal) {
-      content += seg.text;
-      if (options.includeTranslation && seg.translatedText) {
-        content += `\n${seg.translatedText}`;
-      }
-    } else if (options.includeTranslation && seg.translatedText) {
-      content += seg.translatedText;
+    // 原文和译文分行显示
+    if (options.includeOriginal && seg.text) {
+      content += `${seg.text}\n`;
     }
     
-    content += '\n\n';
+    if (options.includeTranslation && seg.translatedText) {
+      content += `${seg.translatedText}\n`;
+    }
+    
+    content += '\n';
   });
   return content;
 }
@@ -355,20 +406,22 @@ function generateVTT(segments: any[], options: any): string {
     content += `${index + 1}\n`;
     content += `${formatTime(seg.startTime)} --> ${formatTime(seg.endTime)}\n`;
     
-    if (options.includeSpeaker && seg.speaker) {
-      content += `<v ${seg.speaker}>`;
+    // 说话人信息（统一格式，没有则显示为空）
+    if (options.includeSpeaker) {
+      const speaker = seg.speaker || '';
+      content += `<v ${speaker}>`;
     }
     
-    if (options.includeOriginal) {
-      content += seg.text;
-      if (options.includeTranslation && seg.translatedText) {
-        content += `\n${seg.translatedText}`;
-      }
-    } else if (options.includeTranslation && seg.translatedText) {
-      content += seg.translatedText;
+    // 原文和译文分行显示
+    if (options.includeOriginal && seg.text) {
+      content += `${seg.text}\n`;
     }
     
-    content += '\n\n';
+    if (options.includeTranslation && seg.translatedText) {
+      content += `${seg.translatedText}\n`;
+    }
+    
+    content += '\n';
   });
   return content;
 }

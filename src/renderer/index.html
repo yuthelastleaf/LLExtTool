@@ -19,13 +19,29 @@
             <!-- 左侧：视频和控制面板 -->
             <aside class="sidebar">
                 <div class="card">
-                    <h2>视频处理</h2>
+                    <h2>媒体处理</h2>
                     
                     <div class="form-group">
+                        <label>输入文件类型:</label>
+                        <div class="file-type-toggle">
+                            <button id="videoModeBtn" class="btn btn-toggle active">🎬 视频</button>
+                            <button id="audioModeBtn" class="btn btn-toggle">🎵 音频</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" id="videoFileGroup">
                         <label>视频文件:</label>
                         <div class="input-group">
                             <input type="text" id="videoPath" readonly placeholder="选择视频文件...">
                             <button id="selectVideoBtn" class="btn btn-primary">选择</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group hidden" id="audioFileGroup">
+                        <label>音频文件:</label>
+                        <div class="input-group">
+                            <input type="text" id="audioPath" readonly placeholder="选择音频文件...">
+                            <button id="selectAudioBtn" class="btn btn-primary">选择</button>
                         </div>
                     </div>
 
@@ -78,16 +94,109 @@
                 <div class="editor-header">
                     <h2>字幕编辑器</h2>
                     <div class="editor-actions">
+                        <div class="view-mode-toggle">
+                            <button id="editModeBtn" class="btn btn-toggle active">✏️ 编辑</button>
+                            <button id="overviewModeBtn" class="btn btn-toggle">📋 总览</button>
+                        </div>
                         <button id="importBtn" class="btn btn-secondary">📥 导入字幕</button>
-                        <button id="addSpeakerBtn" class="btn btn-secondary">➕ 添加说话人</button>
+                        <button id="importAudioBtn" class="btn btn-secondary">🎵 导入音频</button>
                         <button id="exportBtn" class="btn btn-primary" disabled>💾 导出字幕</button>
                     </div>
                 </div>
 
-                <div class="subtitle-list" id="subtitleList">
-                    <div class="empty-state">
-                        <p>暂无字幕数据</p>
-                        <p class="hint">选择视频并点击"开始处理"生成字幕</p>
+                <!-- 三段式编辑区域 -->
+                <div class="editor-container" id="editModeContainer">
+                    <!-- 1. 波形显示区 -->
+                    <div class="waveform-section">
+                        <div class="waveform-header">
+                            <span class="section-title">🎵 音频波形</span>
+                            <div class="waveform-controls">
+                                <button id="playPauseBtn" class="icon-btn" disabled>▶️</button>
+                                <span id="currentTime">0:00</span> / <span id="totalDuration">0:00</span>
+                                <button id="zoomInBtn" class="icon-btn">🔍+</button>
+                                <button id="zoomOutBtn" class="icon-btn">🔍-</button>
+                            </div>
+                        </div>
+                        <div class="waveform-canvas-container">
+                            <canvas id="waveformCanvas" width="800" height="120"></canvas>
+                            <div id="waveformPlaceholder" class="waveform-placeholder">
+                                <p>音频波形将在处理视频后显示</p>
+                            </div>
+                        </div>
+                        <div class="timeline-ruler" id="timelineRuler"></div>
+                    </div>
+
+                    <!-- 2. 文本编辑区 -->
+                    <div class="text-editor-section">
+                        <div class="text-editor-header">
+                            <span class="section-title">✏️ 字幕文本</span>
+                            <div class="text-editor-controls">
+                                <button id="toggleOriginalBtn" class="icon-btn" title="显示/隐藏原文">
+                                    <span class="show-icon">👁️</span>
+                                </button>
+                                <button id="prevSegmentBtn" class="icon-btn" disabled>◀️</button>
+                                <span id="segmentCounter">0 / 0</span>
+                                <button id="nextSegmentBtn" class="icon-btn" disabled>▶️</button>
+                            </div>
+                        </div>
+                        <div class="text-editor-content" id="textEditorContent">
+                            <div class="empty-state">
+                                <p>暂无字幕数据</p>
+                                <p class="hint">选择视频并点击"开始处理"生成字幕</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. 角色分配区 -->
+                    <div class="role-assignment-section">
+                        <div class="role-header">
+                            <span class="section-title">👥 角色分配</span>
+                            <button id="addRoleBtn" class="icon-btn add-role-btn" title="添加角色">➕</button>
+                        </div>
+                        <div class="role-list" id="roleList">
+                            <!-- 角色项将动态生成 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 总览模式区域 -->
+                <div class="overview-container hidden" id="overviewModeContainer">
+                    <div class="overview-toolbar">
+                        <div class="overview-search">
+                            <input type="text" id="overviewSearchInput" placeholder="🔍 搜索字幕内容...">
+                        </div>
+                        <div class="overview-filters">
+                            <select id="speakerFilter">
+                                <option value="">全部说话人</option>
+                            </select>
+                        </div>
+                        <div class="overview-view-options">
+                            <button id="toggleOriginalInOverview" class="btn btn-toggle" title="显示/隐藏原文">
+                                👁️ 显示原文
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overview-table-container">
+                        <table class="overview-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-time">时间戳</th>
+                                    <th class="col-speaker">说话人角色</th>
+                                    <th class="col-original hidden">源文本 (Original)</th>
+                                    <th class="col-translation">目标文本翻译</th>
+                                </tr>
+                            </thead>
+                            <tbody id="overviewTableBody">
+                                <tr class="empty-row">
+                                    <td colspan="4">
+                                        <div class="empty-state">
+                                            <p>暂无字幕数据</p>
+                                            <p class="hint">选择视频并点击"开始处理"生成字幕</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </main>
@@ -149,6 +258,26 @@
             <div class="modal-footer">
                 <button id="confirmAddSpeaker" class="btn btn-primary">确定</button>
                 <button id="cancelAddSpeaker" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加角色对话框 -->
+    <div id="addRoleModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>添加角色</h2>
+                <button class="close-btn" id="closeRoleModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>角色名称:</label>
+                    <input type="text" id="roleNameInput" placeholder="请输入角色名称...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="confirmAddRole" class="btn btn-primary">确定</button>
+                <button id="cancelAddRole" class="btn btn-secondary">取消</button>
             </div>
         </div>
     </div>
