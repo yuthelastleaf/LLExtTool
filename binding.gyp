@@ -52,7 +52,8 @@
       "sources": [
         "native/src/llwhisper.cpp",
         "native/src/whisper_wrapper.cpp",
-        "native/src/translate_wrapper.cpp"
+        "native/src/translate_wrapper.cpp",
+        "native/src/sentencepiece_tokenizer.cpp"
       ],
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")",
@@ -61,7 +62,8 @@
         "native/whisper.cpp/ggml/include",
         "native/whisper.cpp/build/_deps/ggml-src/include",
         "native/ffmpeg/include",
-        "native/ctranslate2/include"
+        "native/ctranslate2/include",
+        "native/sentencepiece-install/include"
       ],
       "dependencies": [
         "<!(node -p \"require('node-addon-api').gyp\")"
@@ -85,7 +87,8 @@
             "../native/ffmpeg/lib/avformat.lib",
             "../native/ffmpeg/lib/avutil.lib",
             "../native/ffmpeg/lib/swresample.lib",
-            "../native/ctranslate2/lib/ctranslate2.lib"
+            "../native/ctranslate2/lib/ctranslate2.lib",
+            "../native/sentencepiece-install/lib/sentencepiece.lib"
           ],
           "copies": [
             {

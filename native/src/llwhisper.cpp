@@ -1,4 +1,5 @@
 #include <napi.h>
+#include <iostream>
 #include "../include/whisper_wrapper.h"
 #include "../include/translate_wrapper.h"
 
@@ -311,9 +312,42 @@ Napi::Value LoadTranslateModel(const Napi::CallbackInfo& info) {
     }
 }
 
+/** 加载 SentencePiece tokenizer */
+Napi::Value LoadTranslateTokenizer(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected string argument (tokenizerPath)").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    std::string tokenizerPath = info[0].As<Napi::String>().Utf8Value();
+    
+    try {
+        if (translateWrapper == nullptr) {
+            Napi::Error::New(env, "Translation model not loaded. Load model first.").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        
+        bool result = translateWrapper->loadTokenizer(tokenizerPath);
+        
+        if (!result) {
+            Napi::Error::New(env, "Failed to load tokenizer").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        
+        return Napi::Boolean::New(env, true);
+    } catch (const std::exception& e) {
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
 /** 翻译单个文本 */
 Napi::Value TranslateText(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
+    
+    std::cout << "[NAPI] TranslateText called!" << std::endl;
     
     if (info.Length() < 1 || !info[0].IsString()) {
         Napi::TypeError::New(env, "Expected string argument").ThrowAsJavaScriptException();
@@ -321,6 +355,149 @@ Napi::Value TranslateText(const Napi::CallbackInfo& info) {
     }
     
     std::string text = info[0].As<Napi::String>().Utf8Value();
+    std::cout << "[NAPI] Input text: " << text.substr(0, 50) << "..." << std::endl;
+    
+    try {
+        if (translateWrapper == nullptr || !translateWrapper->isModelLoaded()) {
+            std::cout << "[NAPI] ERROR: Translation model not loaded!" << std::endl;
+            Napi::Error::New(env, "Translation model not loaded").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        
+        std::cout << "[NAPI] Model is loaded, parsing params..." << std::endl;
+        lltranslate::TranslateParams params;
+        
+        // 解析可选参数
+        if (info.Length() >= 2 && info[1].IsObject()) {
+            Napi::Object options = info[1].As<Napi::Object>();
+            
+            if (options.Has("beam_size")) {
+                params.beam_size = options.Get("beam_size").As<Napi::Number>().Int32Value();
+            }
+            if (options.Has("length_penalty")) {
+                params.length_penalty = options.Get("length_penalty").As<Napi::Number>().FloatValue();
+            }
+            if (options.Has("max_batch_size")) {
+                params.max_batch_size = options.Get("max_batch_size").As<Napi::Number>().Int32Value();
+            }
+            if (options.Has("target_prefix")) {
+                Napi::Value targetPrefixValue = options.Get("target_prefix");
+                if (targetPrefixValue.IsArray()) {
+                    Napi::Array targetPrefixArray = targetPrefixValue.As<Napi::Array>();
+                    std::cout << "[NAPI] target_prefix array length: " << targetPrefixArray.Length() << std::endl;
+                    for (uint32_t i = 0; i < targetPrefixArray.Length(); i++) {
+                        std::string prefix = targetPrefixArray.Get(i).As<Napi::String>().Utf8Value();
+                        std::cout << "[NAPI] target_prefix[" << i << "]: " << prefix << std::endl;
+                        params.target_prefix.push_back(prefix);
+                    }
+                }
+            }
+        }
+        
+        std::cout << "[NAPI] Calling translateWrapper->translate()..." << std::endl;
+        std::string result = translateWrapper->translate(text, params);
+        std::cout << "[NAPI] translate() returned successfully!" << std::endl;
+        std::cout << "[NAPI] Result: " << result.substr(0, 50) << "..." << std::endl;
+        
+        return Napi::String::New(env, result);
+        
+    } catch (const std::exception& e) {
+        std::cout << "[NAPI] Exception caught: " << e.what() << std::endl;
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+/** 批量翻译 */
+Napi::Value TranslateBatch(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    std::cout << "[NAPI] TranslateBatch called!" << std::endl;
+    
+    if (info.Length() < 1 || !info[0].IsArray()) {
+        Napi::TypeError::New(env, "Expected array of strings").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    Napi::Array textsArray = info[0].As<Napi::Array>();
+    std::vector<std::string> texts;
+    
+    std::cout << "[NAPI] Batch size: " << textsArray.Length() << std::endl;
+    for (uint32_t i = 0; i < textsArray.Length(); i++) {
+        std::string text = textsArray.Get(i).As<Napi::String>().Utf8Value();
+        texts.push_back(text);
+        std::cout << "[NAPI] Text[" << i << "]: " << text.substr(0, 30) << "..." << std::endl;
+    }
+    
+    try {
+        if (translateWrapper == nullptr || !translateWrapper->isModelLoaded()) {
+            std::cout << "[NAPI] ERROR: Translation model not loaded!" << std::endl;
+            Napi::Error::New(env, "Translation model not loaded").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        
+        std::cout << "[NAPI] Model is loaded, parsing params..." << std::endl;
+        
+        lltranslate::TranslateParams params;
+        
+        if (info.Length() >= 2 && info[1].IsObject()) {
+            Napi::Object options = info[1].As<Napi::Object>();
+            
+            if (options.Has("beam_size")) {
+                params.beam_size = options.Get("beam_size").As<Napi::Number>().Int32Value();
+            }
+            if (options.Has("length_penalty")) {
+                params.length_penalty = options.Get("length_penalty").As<Napi::Number>().FloatValue();
+            }
+            if (options.Has("target_prefix")) {
+                Napi::Value targetPrefixValue = options.Get("target_prefix");
+                if (targetPrefixValue.IsArray()) {
+                    Napi::Array targetPrefixArray = targetPrefixValue.As<Napi::Array>();
+                    std::cout << "[NAPI] target_prefix array length: " << targetPrefixArray.Length() << std::endl;
+                    for (uint32_t i = 0; i < targetPrefixArray.Length(); i++) {
+                        std::string prefix = targetPrefixArray.Get(i).As<Napi::String>().Utf8Value();
+                        std::cout << "[NAPI] target_prefix[" << i << "]: " << prefix << std::endl;
+                        params.target_prefix.push_back(prefix);
+                    }
+                }
+            }
+        }
+        
+        std::cout << "[NAPI] Calling translateWrapper->translateBatch()..." << std::endl;
+        std::vector<std::string> results = translateWrapper->translateBatch(texts, params);
+        std::cout << "[NAPI] translateBatch() returned successfully!" << std::endl;
+        std::cout << "[NAPI] Results count: " << results.size() << std::endl;
+        
+        Napi::Array resultArray = Napi::Array::New(env, results.size());
+        for (size_t i = 0; i < results.size(); i++) {
+            std::cout << "[NAPI] Setting result[" << i << "]..." << std::endl;
+            resultArray.Set(i, Napi::String::New(env, results[i]));
+        }
+        
+        std::cout << "[NAPI] Returning result array..." << std::endl;
+        return resultArray;
+        
+    } catch (const std::exception& e) {
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+/** 使用预先tokenized的tokens进行翻译 */
+Napi::Value TranslateWithTokens(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    if (info.Length() < 1 || !info[0].IsArray()) {
+        Napi::TypeError::New(env, "Expected array of token strings").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    Napi::Array tokensArray = info[0].As<Napi::Array>();
+    std::vector<std::string> tokens;
+    
+    for (uint32_t i = 0; i < tokensArray.Length(); i++) {
+        tokens.push_back(tokensArray.Get(i).As<Napi::String>().Utf8Value());
+    }
     
     try {
         if (translateWrapper == nullptr || !translateWrapper->isModelLoaded()) {
@@ -340,63 +517,19 @@ Napi::Value TranslateText(const Napi::CallbackInfo& info) {
             if (options.Has("length_penalty")) {
                 params.length_penalty = options.Get("length_penalty").As<Napi::Number>().FloatValue();
             }
-            if (options.Has("max_batch_size")) {
-                params.max_batch_size = options.Get("max_batch_size").As<Napi::Number>().Int32Value();
+            if (options.Has("target_prefix")) {
+                Napi::Value targetPrefixValue = options.Get("target_prefix");
+                if (targetPrefixValue.IsArray()) {
+                    Napi::Array targetPrefixArray = targetPrefixValue.As<Napi::Array>();
+                    for (uint32_t i = 0; i < targetPrefixArray.Length(); i++) {
+                        params.target_prefix.push_back(targetPrefixArray.Get(i).As<Napi::String>().Utf8Value());
+                    }
+                }
             }
         }
         
-        std::string result = translateWrapper->translate(text, params);
+        std::string result = translateWrapper->translateWithTokens(tokens, params);
         return Napi::String::New(env, result);
-        
-    } catch (const std::exception& e) {
-        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
-        return env.Null();
-    }
-}
-
-/** 批量翻译 */
-Napi::Value TranslateBatch(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    
-    if (info.Length() < 1 || !info[0].IsArray()) {
-        Napi::TypeError::New(env, "Expected array of strings").ThrowAsJavaScriptException();
-        return env.Null();
-    }
-    
-    Napi::Array textsArray = info[0].As<Napi::Array>();
-    std::vector<std::string> texts;
-    
-    for (uint32_t i = 0; i < textsArray.Length(); i++) {
-        texts.push_back(textsArray.Get(i).As<Napi::String>().Utf8Value());
-    }
-    
-    try {
-        if (translateWrapper == nullptr || !translateWrapper->isModelLoaded()) {
-            Napi::Error::New(env, "Translation model not loaded").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        lltranslate::TranslateParams params;
-        
-        if (info.Length() >= 2 && info[1].IsObject()) {
-            Napi::Object options = info[1].As<Napi::Object>();
-            
-            if (options.Has("beam_size")) {
-                params.beam_size = options.Get("beam_size").As<Napi::Number>().Int32Value();
-            }
-            if (options.Has("length_penalty")) {
-                params.length_penalty = options.Get("length_penalty").As<Napi::Number>().FloatValue();
-            }
-        }
-        
-        std::vector<std::string> results = translateWrapper->translateBatch(texts, params);
-        
-        Napi::Array resultArray = Napi::Array::New(env, results.size());
-        for (size_t i = 0; i < results.size(); i++) {
-            resultArray.Set(i, Napi::String::New(env, results[i]));
-        }
-        
-        return resultArray;
         
     } catch (const std::exception& e) {
         Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
@@ -417,8 +550,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     
     // 翻译功能
     exports.Set("loadTranslateModel", Napi::Function::New(env, LoadTranslateModel));
+    exports.Set("loadTranslateTokenizer", Napi::Function::New(env, LoadTranslateTokenizer));
     exports.Set("translateText", Napi::Function::New(env, TranslateText));
     exports.Set("translateBatch", Napi::Function::New(env, TranslateBatch));
+    exports.Set("translateWithTokens", Napi::Function::New(env, TranslateWithTokens));
     
     return exports;
 }

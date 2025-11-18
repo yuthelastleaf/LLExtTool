@@ -20,11 +20,15 @@ export class ConfigManager {
       ? path.resolve(__dirname, '..', '..')
       : path.dirname(app.getPath('exe'));
     
-    const defaultModelPath = path.join(appRoot, 'native', 'whisper.cpp', 'models', 'ggml-large-v2-f16.bin');
+    const defaultWhisperModelPath = path.join(appRoot, 'native', 'whisper.cpp', 'models', 'ggml-large-v2-f16.bin');
+    const defaultTranslateModelDir = path.join(appRoot, 'native', 'model', 'm2m100-ct2');
+    const defaultTranslateTokenizerPath = path.join(appRoot, 'native', 'model', 'm2m100_418M', 'sentencepiece.bpe.model');
     
     return {
-      whisperModelPath: fs.existsSync(defaultModelPath) ? defaultModelPath : '',
-      translationModelPath: '',
+      whisperModelPath: fs.existsSync(defaultWhisperModelPath) ? defaultWhisperModelPath : '',
+      translationModelPath: fs.existsSync(defaultTranslateModelDir) ? defaultTranslateModelDir : '',
+      translationTokenizerPath: fs.existsSync(defaultTranslateTokenizerPath) ? defaultTranslateTokenizerPath : '',
+      translationModelType: 'm2m100',
       defaultSourceLanguage: 'ja',
       defaultTargetLanguage: 'zh',
       outputDirectory: app.getPath('documents'),

@@ -49,7 +49,11 @@ const elements = {
     settingsModal: document.getElementById('settingsModal') as HTMLDivElement,
     whisperModelPath: document.getElementById('whisperModelPath') as HTMLInputElement,
     translationModelPath: document.getElementById('translationModelPath') as HTMLInputElement,
+    translationTokenizerPath: document.getElementById('translationTokenizerPath') as HTMLInputElement,
+    translationModelType: document.getElementById('translationModelType') as HTMLSelectElement,
     outputDirectory: document.getElementById('outputDirectory') as HTMLInputElement,
+    defaultSourceLanguage: document.getElementById('defaultSourceLanguage') as HTMLSelectElement,
+    defaultTargetLanguage: document.getElementById('defaultTargetLanguage') as HTMLSelectElement,
     
     /** 添加说话人对话框 */
     addSpeakerModal: document.getElementById('addSpeakerModal') as HTMLDivElement,
@@ -103,8 +107,13 @@ function updateConfigUI() {
     
     elements.whisperModelPath.value = currentConfig.whisperModelPath || '';
     elements.translationModelPath.value = currentConfig.translationModelPath || '';
+    elements.translationTokenizerPath.value = currentConfig.translationTokenizerPath || '';
+    elements.translationModelType.value = currentConfig.translationModelType || 'm2m100';
     elements.outputDirectory.value = currentConfig.outputDirectory || '';
     elements.sourceLanguage.value = currentConfig.defaultSourceLanguage;
+    elements.targetLanguage.value = currentConfig.defaultTargetLanguage;
+    elements.defaultSourceLanguage.value = currentConfig.defaultSourceLanguage;
+    elements.defaultTargetLanguage.value = currentConfig.defaultTargetLanguage;
     elements.audioFormat.value = currentConfig.audioFormat;
 }
 
@@ -156,6 +165,8 @@ function setupEventListeners() {
     
     document.getElementById('saveSettingsBtn')?.addEventListener('click', saveSettings);
     
+    document.getElementById('reloadTranslationBtn')?.addEventListener('click', reloadTranslationModel);
+    
     /** 添加说话人对话框 */
     document.getElementById('closeSpeakerModal')?.addEventListener('click', () => {
         elements.addSpeakerModal.classList.add('hidden');
@@ -200,8 +211,16 @@ function setupEventListeners() {
     });
     
     document.getElementById('selectTranslationModelBtn')?.addEventListener('click', async () => {
-        const path = await ipcRenderer.invoke(IpcChannels.SELECT_FILE);
+        const path = await ipcRenderer.invoke(IpcChannels.SELECT_FOLDER);
         if (path) elements.translationModelPath!.value = path;
+    });
+    
+    document.getElementById('selectTokenizerBtn')?.addEventListener('click', async () => {
+        const path = await ipcRenderer.invoke(IpcChannels.SELECT_FILE, [
+            { name: 'SentencePiece Model', extensions: ['model'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]);
+        if (path) elements.translationTokenizerPath!.value = path;
     });
     
     document.getElementById('selectOutputDirBtn')?.addEventListener('click', async () => {
@@ -838,14 +857,54 @@ async function saveSettings() {
         const updates = {
             whisperModelPath: elements.whisperModelPath.value,
             translationModelPath: elements.translationModelPath.value,
+            translationTokenizerPath: elements.translationTokenizerPath.value,
+            translationModelType: elements.translationModelType.value as 'm2m100' | 'nllb',
             outputDirectory: elements.outputDirectory.value,
+            defaultSourceLanguage: elements.defaultSourceLanguage.value as 'ja' | 'en',
+            defaultTargetLanguage: elements.defaultTargetLanguage.value,
         };
         
         currentConfig = await ipcRenderer.invoke(IpcChannels.UPDATE_CONFIG, updates);
+        
+        // 更新主界面的语言选项
+        elements.sourceLanguage.value = updates.defaultSourceLanguage;
+        elements.targetLanguage.value = updates.defaultTargetLanguage;
+        
         elements.settingsModal.classList.add('hidden');
-        alert('设置已保存');
+        alert('设置已保存\n\n提示：如果修改了翻译模型路径或模型类型，请点击"重新加载翻译模型"按钮');
     } catch (error: any) {
         showError('保存设置失败: ' + error.message);
+    }
+}
+
+// 重新加载翻译模型
+async function reloadTranslationModel() {
+    try {
+        const btn = document.getElementById('reloadTranslationBtn') as HTMLButtonElement;
+        const originalText = btn.textContent;
+        
+        // 显示加载状态
+        btn.disabled = true;
+        btn.textContent = '🔄 加载中...';
+        
+        console.log('[Renderer] Reloading translation model...');
+        const result = await ipcRenderer.invoke(IpcChannels.RELOAD_TRANSLATION_MODEL);
+        
+        // 恢复按钮状态
+        btn.disabled = false;
+        btn.textContent = originalText || '🔄 重新加载翻译模型';
+        
+        if (result.success) {
+            alert('✓ 翻译模型重新加载成功！\n\n现在可以使用新的模型进行翻译了。');
+            console.log('[Renderer] Translation model reloaded successfully');
+        } else {
+            showError('重新加载失败: ' + result.message);
+        }
+    } catch (error: any) {
+        const btn = document.getElementById('reloadTranslationBtn') as HTMLButtonElement;
+        btn.disabled = false;
+        btn.textContent = '🔄 重新加载翻译模型';
+        showError('重新加载翻译模型失败: ' + error.message);
     }
 }
 

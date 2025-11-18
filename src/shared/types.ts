@@ -22,8 +22,10 @@ export interface TranscriptSegment {
 
 // 应用配置
 export interface AppConfig {
-  whisperModelPath: string;
-  translationModelPath: string;
+  whisperModelPath: string;  // Whisper 模型文件路径 (.bin)
+  translationModelPath: string;  // CTranslate2 模型目录路径（包含 model.bin 和 config.json）
+  translationTokenizerPath: string;  // SentencePiece tokenizer 文件路径 (.model)
+  translationModelType: 'm2m100' | 'nllb';  // 翻译模型类型
   defaultSourceLanguage: 'ja' | 'en';
   defaultTargetLanguage: 'zh';
   outputDirectory: string;
@@ -52,6 +54,7 @@ export const IpcChannels = {
   // 翻译
   TRANSLATE_TEXT: 'translate-text',
   BATCH_TRANSLATE: 'batch-translate',
+  RELOAD_TRANSLATION_MODEL: 'reload-translation-model',
   
   // 配置
   GET_CONFIG: 'get-config',

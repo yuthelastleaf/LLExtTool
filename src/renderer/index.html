@@ -48,15 +48,26 @@
                     <div class="form-group">
                         <label>源语言:</label>
                         <select id="sourceLanguage">
-                            <option value="ja">日语</option>
-                            <option value="en">英语</option>
+                            <option value="ja">日语 (ja)</option>
+                            <option value="en">英语 (en)</option>
+                            <option value="zh">中文 (zh)</option>
+                            <option value="ko">韩语 (ko)</option>
+                            <option value="fr">法语 (fr)</option>
+                            <option value="de">德语 (de)</option>
+                            <option value="es">西班牙语 (es)</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label>目标语言:</label>
                         <select id="targetLanguage">
-                            <option value="zh" selected>中文</option>
+                            <option value="zh" selected>中文 (zh)</option>
+                            <option value="ja">日语 (ja)</option>
+                            <option value="en">英语 (en)</option>
+                            <option value="ko">韩语 (ko)</option>
+                            <option value="fr">法语 (fr)</option>
+                            <option value="de">德语 (de)</option>
+                            <option value="es">西班牙语 (es)</option>
                         </select>
                     </div>
 
@@ -220,11 +231,30 @@
                 </div>
 
                 <div class="form-group">
-                    <label>翻译模型路径:</label>
+                    <label>翻译模型路径 (目录):</label>
                     <div class="input-group">
-                        <input type="text" id="translationModelPath" placeholder="选择模型文件...">
+                        <input type="text" id="translationModelPath" placeholder="选择模型目录...">
                         <button id="selectTranslationModelBtn" class="btn btn-secondary">浏览</button>
                     </div>
+                    <small style="color: #666; margin-top: 4px; display: block;">选择包含 model.bin 和 config.json 的目录</small>
+                </div>
+
+                <div class="form-group">
+                    <label>翻译 Tokenizer 路径:</label>
+                    <div class="input-group">
+                        <input type="text" id="translationTokenizerPath" placeholder="选择 tokenizer 文件...">
+                        <button id="selectTokenizerBtn" class="btn btn-secondary">浏览</button>
+                    </div>
+                    <small style="color: #666; margin-top: 4px; display: block;">选择 sentencepiece.bpe.model 文件</small>
+                </div>
+
+                <div class="form-group">
+                    <label>翻译模型类型:</label>
+                    <select id="translationModelType">
+                        <option value="m2m100">M2M100 (100+ 语言, 语言代码: __ja__, __zh__)</option>
+                        <option value="nllb">NLLB-200 (200 语言, 语言代码: jpn_Jpan, zho_Hans)</option>
+                    </select>
+                    <small style="color: #666; margin-top: 4px; display: block;">根据你的模型选择对应的类型,影响语言代码格式</small>
                 </div>
 
                 <div class="form-group">
@@ -233,6 +263,45 @@
                         <input type="text" id="outputDirectory" placeholder="选择输出目录...">
                         <button id="selectOutputDirBtn" class="btn btn-secondary">浏览</button>
                     </div>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+
+                <div class="form-group">
+                    <button id="reloadTranslationBtn" class="btn btn-success" style="width: 100%;">
+                        🔄 重新加载翻译模型
+                    </button>
+                    <small style="color: #666; margin-top: 4px; display: block;">使用新配置的路径重新加载模型，无需重启应用</small>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+
+                <h3 style="margin-bottom: 15px; font-size: 16px;">语言支持</h3>
+
+                <div class="form-group">
+                    <label>默认源语言:</label>
+                    <select id="defaultSourceLanguage">
+                        <option value="ja">日语 (ja)</option>
+                        <option value="en">英语 (en)</option>
+                        <option value="zh">中文 (zh)</option>
+                        <option value="ko">韩语 (ko)</option>
+                        <option value="fr">法语 (fr)</option>
+                        <option value="de">德语 (de)</option>
+                        <option value="es">西班牙语 (es)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>默认目标语言:</label>
+                    <select id="defaultTargetLanguage">
+                        <option value="zh">中文 (zh)</option>
+                        <option value="ja">日语 (ja)</option>
+                        <option value="en">英语 (en)</option>
+                        <option value="ko">韩语 (ko)</option>
+                        <option value="fr">法语 (fr)</option>
+                        <option value="de">德语 (de)</option>
+                        <option value="es">西班牙语 (es)</option>
+                    </select>
                 </div>
             </div>
             <div class="modal-footer">

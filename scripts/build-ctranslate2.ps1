@@ -14,18 +14,85 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Check source directory
-$SourceDir = "$PSScriptRoot\..\native\ctranslate2-source"
-$BuildDir = "$PSScriptRoot\..\native\ctranslate2-source\build"
-$InstallDir = "$PSScriptRoot\..\native\ctranslate2"
+$SourceDir = "$PSScriptRoot\..\native\ctranslate2"
 
-if (-not (Test-Path $SourceDir)) {
-    Write-Host "[ERROR] CTranslate2 source not found!" -ForegroundColor Red
-    Write-Host "  Please clone first:" -ForegroundColor Yellow
-    Write-Host "  git clone git@github.com:OpenNMT/CTranslate2.git native/ctranslate2-source" -ForegroundColor Yellow
+if (Test-Path "$SourceDir\CMakeLists.txt") {
+    Write-Host "[OK] Found CTranslate2 source: native/ctranslate2" -ForegroundColor Green
+} else {
+    Write-Host "[ERROR] CTranslate2 source code not found!" -ForegroundColor Red
+    Write-Host "  Expected location: native/ctranslate2/" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Method 1: Use git clone" -ForegroundColor Cyan
+    Write-Host "  git clone https://github.com/OpenNMT/CTranslate2.git native/ctranslate2" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Method 2: Download zip file" -ForegroundColor Cyan
+    Write-Host "  https://github.com/OpenNMT/CTranslate2/archive/refs/heads/master.zip" -ForegroundColor Gray
     exit 1
 }
 
-Write-Host "[OK] Source directory: $SourceDir" -ForegroundColor Green
+$BuildDir = "$SourceDir\build"
+$InstallDir = "$PSScriptRoot\..\native\ctranslate2-built"
+
+Write-Host "[INFO] 源码目录: $SourceDir" -ForegroundColor Cyan
+Write-Host "[INFO] 构建目录: $BuildDir" -ForegroundColor Cyan
+Write-Host "[INFO] 安装目录: $InstallDir" -ForegroundColor Cyan
+Write-Host ""
+
+# Check if git submodules are initialized
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Checking Git submodules..." -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+
+$spdlogPath = Join-Path $SourceDir "third_party\spdlog\CMakeLists.txt"
+$cpuFeaturesPath = Join-Path $SourceDir "third_party\cpu_features\CMakeLists.txt"
+
+if (-not (Test-Path $spdlogPath) -or -not (Test-Path $cpuFeaturesPath)) {
+    Write-Host "[WARN] Git submodules not initialized, initializing..." -ForegroundColor Yellow
+    
+    Push-Location $SourceDir
+    try {
+        # Check if it's a git repository
+        $isGitRepo = Test-Path ".git"
+        
+        if ($isGitRepo) {
+            Write-Host "Running: git submodule update --init --recursive" -ForegroundColor Gray
+            & git submodule update --init --recursive
+            
+            if ($LASTEXITCODE -ne 0) {
+                throw "Git submodule initialization failed"
+            }
+            Write-Host "[OK] Git submodules initialized successfully" -ForegroundColor Green
+        } else {
+            Write-Host "[ERROR] Source directory is not a Git repository!" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "Please use one of these methods to get complete source:" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "Method 1: Use git clone (recommended)" -ForegroundColor Cyan
+            Write-Host "  git clone --recursive https://github.com/OpenNMT/CTranslate2.git native/ctranslate2" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "Method 2: Manually initialize submodules" -ForegroundColor Cyan
+            Write-Host "  cd native/ctranslate2" -ForegroundColor Gray
+            Write-Host "  git submodule update --init --recursive" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "Method 3: Download prebuilt version (easiest)" -ForegroundColor Cyan
+            Write-Host "  https://github.com/OpenNMT/CTranslate2/releases" -ForegroundColor Gray
+            Write-Host "  Download ctranslate2-*-windows-x64.zip" -ForegroundColor Gray
+            Write-Host ""
+            Pop-Location
+            exit 1
+        }
+    } catch {
+        Write-Host "[ERROR] $_" -ForegroundColor Red
+        Pop-Location
+        exit 1
+    }
+    Pop-Location
+} else {
+    Write-Host "[OK] Git submodules already exist" -ForegroundColor Green
+}
+
+Write-Host ""
 
 # Clean build directory
 if ($Clean -and (Test-Path $BuildDir)) {
@@ -93,19 +160,24 @@ try {
         "-A", "x64",
         "-DCMAKE_INSTALL_PREFIX=$InstallDir",
         "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_POLICY_DEFAULT_CMP0000=NEW",  # Fix cpu_features CMake version compatibility
         "-DWITH_CUDA=$cudaEnabled",
-        "-DWITH_CUDNN=OFF",  # CuDNN 需要单独下载
-        "-DWITH_MKL=OFF",    # Intel MKL 需要单独安装
-        "-DBUILD_CLI=OFF",   # 不需要命令行工具
-        "-DBUILD_TESTS=OFF", # 不编译测试
-        "-DBUILD_SHARED_LIBS=ON"  # 编译动态库
+        "-DWITH_CUDNN=OFF",     # CuDNN requires separate download
+        "-DWITH_MKL=OFF",       # Intel MKL requires separate install
+        "-DWITH_DNNL=OFF",      # Don't use DNNL
+        "-DWITH_OPENBLAS=OFF",  # Don't use OpenBLAS
+        "-DOPENMP_RUNTIME=NONE", # Disable OpenMP (avoid libiomp5 not found)
+        "-DBUILD_CLI=OFF",      # Don't need CLI tools
+        "-DBUILD_TESTS=OFF",    # Don't compile tests
+        "-DBUILD_SHARED_LIBS=ON", # Compile shared libraries
+        "-DENABLE_CPU_DISPATCH=OFF" # Disable CPU dispatch (avoid dependency issues)
     )
     
-    Write-Host "执行: cmake $($cmakeArgs -join ' ')" -ForegroundColor Cyan
+    Write-Host "Running: cmake $($cmakeArgs -join ' ')" -ForegroundColor Cyan
     & cmake @cmakeArgs
     
     if ($LASTEXITCODE -ne 0) {
-        throw "CMake 配置失败"
+        throw "CMake configuration failed"
     }
     
     Write-Host ""
@@ -117,11 +189,11 @@ try {
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host ""
     
-    # 编译
+    # Build
     & cmake --build . --config Release --parallel
     
     if ($LASTEXITCODE -ne 0) {
-        throw "编译失败"
+        throw "Build failed"
     }
     
     Write-Host ""
@@ -133,11 +205,11 @@ try {
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host ""
     
-    # 安装
+    # Install
     & cmake --install . --config Release
     
     if ($LASTEXITCODE -ne 0) {
-        throw "安装失败"
+        throw "Install failed"
     }
     
     Write-Host ""
@@ -196,13 +268,36 @@ if ($allGood) {
     Write-Host "Install directory: $InstallDir" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Yellow
-    Write-Host "1. Run scripts/convert-translation-model.ps1 to convert models" -ForegroundColor Yellow
-    Write-Host "2. Run npx electron-rebuild to rebuild native modules" -ForegroundColor Yellow
-    Write-Host "3. Run npm start to launch the app" -ForegroundColor Yellow
+    Write-Host "1. Run: node test-translate.js (test translation module)" -ForegroundColor Yellow
+    Write-Host "2. Download translation models" -ForegroundColor Yellow
+    Write-Host "3. Run: npm run build (rebuild project)" -ForegroundColor Yellow
+    Write-Host "4. Run: npm start (launch app)" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Model download commands:" -ForegroundColor Cyan
+    Write-Host "pip install ctranslate2 transformers" -ForegroundColor Gray
+    Write-Host "ct2-transformers-converter --model Helsinki-NLP/opus-mt-ja-zh --output_dir native/models/opus-mt-ja-zh-ct2" -ForegroundColor Gray
     Write-Host ""
 } else {
     Write-Host "========================================" -ForegroundColor Red
     Write-Host "  Build failed, check errors above" -ForegroundColor Red
     Write-Host "========================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Common issues and solutions:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "1. Git submodules not initialized" -ForegroundColor Cyan
+    Write-Host "   Error: third_party/spdlog does not contain a CMakeLists.txt" -ForegroundColor Gray
+    Write-Host "   Fix: cd native/ctranslate2 && git submodule update --init --recursive" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "2. Intel OpenMP (libiomp5) not found" -ForegroundColor Cyan
+    Write-Host "   Error: Intel OpenMP runtime libiomp5 not found" -ForegroundColor Gray
+    Write-Host "   Fix: Already disabled in script, check CMake cache if still fails" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "3. Visual Studio components missing" -ForegroundColor Cyan
+    Write-Host "   Fix: Install 'Desktop development with C++' workload" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "4. Too complex? Use prebuilt binaries!" -ForegroundColor Cyan
+    Write-Host "   Run: .\scripts\install-ctranslate2.ps1" -ForegroundColor Green
+    Write-Host "   This will download prebuilt DLLs, no compilation needed" -ForegroundColor Gray
+    Write-Host ""
     exit 1
 }

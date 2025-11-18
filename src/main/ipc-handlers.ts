@@ -30,21 +30,38 @@ function initializeNativeModules() {
     console.log('[Native] ✓ llwhisper loaded');
     console.log('[Native] llwhisper exports:', Object.keys(llwhisper));
     
-    // 加载翻译模型
+    // 加载翻译模型和tokenizer
     try {
-      const translateModelPath = path.join(
-        process.cwd(),
-        'native',
-        'models',
-        'opus-mt-ja-zh-ct2'
-      );
+      const config = configManager.getConfig();
       
-      if (fs.existsSync(translateModelPath)) {
-        console.log('[Native] Loading translation model from:', translateModelPath);
-        llwhisper.loadTranslateModel(translateModelPath, 'cpu');
-        console.log('[Native] ✓ Translation model loaded');
+      if (config.translationModelPath && config.translationTokenizerPath) {
+        console.log('[Native] Loading translation model from config:', config.translationModelPath);
+        console.log('[Native] Loading tokenizer from config:', config.translationTokenizerPath);
+        
+        // 检查模型文件是否存在
+        const hasModelBin = fs.existsSync(path.join(config.translationModelPath, 'model.bin'));
+        const hasConfig = fs.existsSync(path.join(config.translationModelPath, 'config.json'));
+        const hasTokenizer = fs.existsSync(config.translationTokenizerPath);
+        
+        if (!hasModelBin || !hasConfig) {
+          console.error('[Native] ✗ Translation model files missing:', {
+            modelBin: hasModelBin,
+            config: hasConfig,
+          });
+        } else if (hasTokenizer) {
+          try {
+            // 使用 CUDA 设备（如果可用）
+            llwhisper.loadTranslateModel(config.translationModelPath, 'cuda');
+            console.log('[Native] ✓ Translation model loaded successfully');
+            
+            llwhisper.loadTranslateTokenizer(config.translationTokenizerPath);
+            console.log('[Native] ✓ Tokenizer loaded successfully');
+          } catch (err: any) {
+            console.error('[Native] ✗ Failed to load translation model/tokenizer:', err.message);
+          }
+        }
       } else {
-        console.log('[Native] ⚠ Translation model not found at:', translateModelPath);
+        console.log('[Native] ⚠ Translation model/tokenizer not configured');
       }
     } catch (transError: any) {
       console.error('[Native] ✗ Failed to load translation model:', transError.message);
@@ -269,15 +286,38 @@ export function setupIpcHandlers() {
   // 翻译文本
   ipcMain.handle(IpcChannels.TRANSLATE_TEXT, async (_, text: string, sourceLang: string, targetLang: string) => {
     try {
-      if (!llwhisper) {
-        console.warn('[Translate] llwhisper module not loaded, returning original text');
+      if (!llwhisper || !llwhisper.translateText) {
+        console.warn('[Translate] Translation module not loaded, returning original text');
         return text; // 翻译模块未加载，返回原文
       }
       
-      console.log(`[Translate] Translating: ${text.substring(0, 50)}...`);
+      const config = configManager.getConfig();
+      const modelType = config.translationModelType || 'm2m100';
+      
+      // 根据模型类型转换语言代码
+      let targetLangCode: string;
+      if (modelType === 'nllb') {
+        // NLLB-200 使用 Flores-200 语言代码
+        const nllbLangMap: Record<string, string> = {
+          'ja': 'jpn_Jpan',
+          'zh': 'zho_Hans',
+          'en': 'eng_Latn',
+          'ko': 'kor_Hang',
+          'fr': 'fra_Latn',
+          'de': 'deu_Latn',
+          'es': 'spa_Latn'
+        };
+        targetLangCode = nllbLangMap[targetLang] || targetLang;
+      } else {
+        // M2M100 使用双下划线格式
+        targetLangCode = `__${targetLang}__`;
+      }
+      
+      console.log(`[Translate] Model: ${modelType}, Translating ${sourceLang} -> ${targetLang} (${targetLangCode}): ${text.substring(0, 50)}...`);
       const result = llwhisper.translateText(text, {
+        target_prefix: [targetLangCode],
         beam_size: 4,
-        length_penalty: 1.0
+        length_penalty: 1
       });
       
       console.log(`[Translate] Result: ${result.substring(0, 50)}...`);
@@ -292,15 +332,39 @@ export function setupIpcHandlers() {
   // 批量翻译
   ipcMain.handle(IpcChannels.BATCH_TRANSLATE, async (_, texts: string[], sourceLang: string, targetLang: string) => {
     try {
-      if (!llwhisper) {
-        console.warn('[Translate] llwhisper module not loaded, returning original texts');
+      if (!llwhisper || !llwhisper.translateBatch) {
+        console.warn('[Translate] Translation module not loaded, returning original texts');
         return texts; // 翻译模块未加载，返回原文
       }
       
-      console.log(`[Translate] Batch translating ${texts.length} texts...`);
+      const config = configManager.getConfig();
+      const modelType = config.translationModelType || 'm2m100';
+      
+      // 根据模型类型转换语言代码
+      let targetLangCode: string;
+      if (modelType === 'nllb') {
+        // NLLB-200 使用 Flores-200 语言代码
+        const nllbLangMap: Record<string, string> = {
+          'ja': 'jpn_Jpan',
+          'zh': 'zho_Hans',
+          'en': 'eng_Latn',
+          'ko': 'kor_Hang',
+          'fr': 'fra_Latn',
+          'de': 'deu_Latn',
+          'es': 'spa_Latn'
+        };
+        targetLangCode = nllbLangMap[targetLang] || targetLang;
+      } else {
+        // M2M100 使用双下划线格式
+        targetLangCode = `__${targetLang}__`;
+      }
+      
+      console.log(`[Translate] Model: ${modelType}, Batch translating ${texts.length} texts (${sourceLang} -> ${targetLang} (${targetLangCode}))...`);
       const results = llwhisper.translateBatch(texts, {
+        target_prefix: [targetLangCode],
         beam_size: 4,
-        max_batch_size: 32
+        max_batch_size: 32,
+        length_penalty: 1
       });
       
       console.log(`[Translate] Batch translation completed: ${results.length} results`);
@@ -309,6 +373,59 @@ export function setupIpcHandlers() {
       console.error('[Translate] Batch error:', error.message);
       console.warn('[Translate] Returning original texts due to translation failure');
       return texts; // 翻译失败，返回原文
+    }
+  });
+
+  // 重新加载翻译模型
+  ipcMain.handle(IpcChannels.RELOAD_TRANSLATION_MODEL, async () => {
+    try {
+      if (!llwhisper) {
+        throw new Error('Native module not loaded');
+      }
+
+      const config = configManager.getConfig();
+      
+      if (!config.translationModelPath || !config.translationTokenizerPath) {
+        throw new Error('翻译模型路径或 Tokenizer 路径未配置');
+      }
+
+      console.log('[Native] Reloading translation model...');
+      console.log('[Native] Model path:', config.translationModelPath);
+      console.log('[Native] Tokenizer path:', config.translationTokenizerPath);
+
+      // 检查文件是否存在
+      const hasModelBin = fs.existsSync(path.join(config.translationModelPath, 'model.bin'));
+      const hasConfig = fs.existsSync(path.join(config.translationModelPath, 'config.json'));
+      const hasTokenizer = fs.existsSync(config.translationTokenizerPath);
+
+      if (!hasModelBin) {
+        throw new Error(`未找到 model.bin 文件：${path.join(config.translationModelPath, 'model.bin')}`);
+      }
+      if (!hasConfig) {
+        throw new Error(`未找到 config.json 文件：${path.join(config.translationModelPath, 'config.json')}`);
+      }
+      if (!hasTokenizer) {
+        throw new Error(`未找到 tokenizer 文件：${config.translationTokenizerPath}`);
+      }
+
+      // 重新加载模型
+      const modelLoaded = llwhisper.loadTranslateModel(config.translationModelPath, 'cuda');
+      if (!modelLoaded) {
+        throw new Error('模型加载失败');
+      }
+      console.log('[Native] ✓ Translation model reloaded successfully');
+
+      // 重新加载 tokenizer
+      const tokenizerLoaded = llwhisper.loadTranslateTokenizer(config.translationTokenizerPath);
+      if (!tokenizerLoaded) {
+        throw new Error('Tokenizer 加载失败');
+      }
+      console.log('[Native] ✓ Tokenizer reloaded successfully');
+
+      return { success: true, message: '翻译模型重新加载成功' };
+    } catch (error: any) {
+      console.error('[Native] ✗ Failed to reload translation model:', error.message);
+      return { success: false, message: error.message };
     }
   });
 
