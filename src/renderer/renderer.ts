@@ -431,7 +431,8 @@ async function processVideo() {
                 IpcChannels.BATCH_TRANSLATE,
                 texts,
                 elements.sourceLanguage!.value,
-                elements.targetLanguage!.value
+                elements.targetLanguage!.value,
+                { beam_size: 5 }
             );
             console.log('[Renderer] Translation completed');
         } catch (error: any) {
@@ -941,12 +942,14 @@ function initNewEditor() {
     console.log('[Editor] Initializing new editor...');
     
     const toggleOriginalBtn = document.getElementById('toggleOriginalBtn');
+    const translateCurrentBtn = document.getElementById('translateCurrentBtn') as HTMLButtonElement;
     const prevSegmentBtn = document.getElementById('prevSegmentBtn');
     const nextSegmentBtn = document.getElementById('nextSegmentBtn');
     const addRoleBtn = document.getElementById('addRoleBtn');
     
     console.log('[Editor] Buttons found:', {
         toggleOriginal: !!toggleOriginalBtn,
+        translateCurrent: !!translateCurrentBtn,
         prev: !!prevSegmentBtn,
         next: !!nextSegmentBtn,
         addRole: !!addRoleBtn
@@ -958,6 +961,66 @@ function initNewEditor() {
             console.log('[Editor] Toggle original text clicked');
             showOriginalText = !showOriginalText;
             renderCurrentSegment();
+        });
+    }
+
+    // 翻译当前段落
+    // 注意：NLLB 模型不支持上下文分割翻译，会把多个句子合并成一个
+    // 因此这里直接使用单句翻译，以保证翻译质量
+    if (translateCurrentBtn) {
+        translateCurrentBtn.addEventListener('click', async () => {
+            console.log('[Editor] Translate current segment clicked');
+            if (currentSegments.length === 0) return;
+            
+            const segment = currentSegments[currentSegmentIndex];
+            if (!segment || !segment.text) {
+                alert('当前段落没有原文可翻译');
+                return;
+            }
+            
+            try {
+                // 显示加载状态
+                const originalIcon = translateCurrentBtn.innerHTML;
+                translateCurrentBtn.innerHTML = '<span class="translate-icon">⏳</span>';
+                translateCurrentBtn.disabled = true;
+                
+                // 直接翻译当前段落（NLLB 不支持上下文分割）
+                const textToTranslate = segment.text.trim();
+                
+                console.log('[Editor] Translating:', JSON.stringify(textToTranslate));
+                
+                const translations = await ipcRenderer.invoke(
+                    IpcChannels.BATCH_TRANSLATE,
+                    [textToTranslate],
+                    elements.sourceLanguage.value,
+                    elements.targetLanguage.value,
+                    { beam_size: 5 }
+                );
+                
+                if (translations && translations.length > 0) {
+                    const finalTranslation = translations[0];
+                    console.log('[Editor] Translation result:', finalTranslation);
+                    
+                    segment.translatedText = finalTranslation.trim();
+                    
+                    // 更新 UI
+                    const textarea = document.getElementById('translatedTextArea') as HTMLTextAreaElement;
+                    if (textarea) {
+                        textarea.value = segment.translatedText || '';
+                    }
+                    console.log('[Editor] Translation updated:', segment.translatedText);
+                }
+                
+                // 恢复按钮状态
+                translateCurrentBtn.innerHTML = originalIcon;
+                translateCurrentBtn.disabled = false;
+                
+            } catch (error: any) {
+                console.error('[Editor] Translation failed:', error);
+                alert('翻译失败: ' + error.message);
+                translateCurrentBtn.innerHTML = '<span class="translate-icon">🌐</span>';
+                translateCurrentBtn.disabled = false;
+            }
         });
     }
     

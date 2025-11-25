@@ -296,6 +296,8 @@ export function setupIpcHandlers() {
       
       // 根据模型类型转换语言代码
       let targetLangCode: string;
+      let sourceLangCode: string = sourceLang;
+      
       if (modelType === 'nllb') {
         // NLLB-200 使用 Flores-200 语言代码
         const nllbLangMap: Record<string, string> = {
@@ -308,17 +310,29 @@ export function setupIpcHandlers() {
           'es': 'spa_Latn'
         };
         targetLangCode = nllbLangMap[targetLang] || targetLang;
+        sourceLangCode = nllbLangMap[sourceLang] || sourceLang;
       } else {
         // M2M100 使用双下划线格式
         targetLangCode = `__${targetLang}__`;
+        // M2M100 usually doesn't need explicit source tag in input if using language tokens, 
+        // but for consistency we can prepare it. However, our C++ implementation 
+        // for M2M100 might not use it in the same way as NLLB.
+        // For now, we only pass source_language for NLLB or if needed.
       }
       
       console.log(`[Translate] Model: ${modelType}, Translating ${sourceLang} -> ${targetLang} (${targetLangCode}): ${text.substring(0, 50)}...`);
-      const result = llwhisper.translateText(text, {
+      
+      const options: any = {
         target_prefix: [targetLangCode],
         beam_size: 4,
         length_penalty: 1
-      });
+      };
+      
+      if (modelType === 'nllb') {
+        options.source_language = sourceLangCode;
+      }
+      
+      const result = llwhisper.translateText(text, options);
       
       console.log(`[Translate] Result: ${result.substring(0, 50)}...`);
       return result;
@@ -330,7 +344,7 @@ export function setupIpcHandlers() {
   });
 
   // 批量翻译
-  ipcMain.handle(IpcChannels.BATCH_TRANSLATE, async (_, texts: string[], sourceLang: string, targetLang: string) => {
+  ipcMain.handle(IpcChannels.BATCH_TRANSLATE, async (_, texts: string[], sourceLang: string, targetLang: string, extraOptions?: any) => {
     try {
       if (!llwhisper || !llwhisper.translateBatch) {
         console.warn('[Translate] Translation module not loaded, returning original texts');
@@ -342,6 +356,8 @@ export function setupIpcHandlers() {
       
       // 根据模型类型转换语言代码
       let targetLangCode: string;
+      let sourceLangCode: string = sourceLang;
+      
       if (modelType === 'nllb') {
         // NLLB-200 使用 Flores-200 语言代码
         const nllbLangMap: Record<string, string> = {
@@ -354,18 +370,27 @@ export function setupIpcHandlers() {
           'es': 'spa_Latn'
         };
         targetLangCode = nllbLangMap[targetLang] || targetLang;
+        sourceLangCode = nllbLangMap[sourceLang] || sourceLang;
       } else {
         // M2M100 使用双下划线格式
         targetLangCode = `__${targetLang}__`;
       }
       
       console.log(`[Translate] Model: ${modelType}, Batch translating ${texts.length} texts (${sourceLang} -> ${targetLang} (${targetLangCode}))...`);
-      const results = llwhisper.translateBatch(texts, {
+      
+      const options: any = {
         target_prefix: [targetLangCode],
-        beam_size: 4,
+        beam_size: 5, // 默认 Beam Size 调整为 5 以提高质量
         max_batch_size: 32,
-        length_penalty: 1
-      });
+        length_penalty: 1,
+        ...extraOptions // 合并额外参数
+      };
+      
+      if (modelType === 'nllb') {
+        options.source_language = sourceLangCode;
+      }
+      
+      const results = llwhisper.translateBatch(texts, options);
       
       console.log(`[Translate] Batch translation completed: ${results.length} results`);
       return results;

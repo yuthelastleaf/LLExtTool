@@ -392,6 +392,10 @@ Napi::Value TranslateText(const Napi::CallbackInfo& info) {
                     }
                 }
             }
+            if (options.Has("source_language")) {
+                params.source_language = options.Get("source_language").As<Napi::String>().Utf8Value();
+                std::cout << "[NAPI] source_language: " << params.source_language << std::endl;
+            }
         }
         
         std::cout << "[NAPI] Calling translateWrapper->translate()..." << std::endl;
@@ -460,6 +464,10 @@ Napi::Value TranslateBatch(const Napi::CallbackInfo& info) {
                         params.target_prefix.push_back(prefix);
                     }
                 }
+            }
+            if (options.Has("source_language")) {
+                params.source_language = options.Get("source_language").As<Napi::String>().Utf8Value();
+                std::cout << "[NAPI] source_language: " << params.source_language << std::endl;
             }
         }
         

@@ -55,21 +55,39 @@ bool TranslateWrapper::loadTokenizer(const std::string& tokenizerPath) {
 }
 
 std::vector<std::string> TranslateWrapper::tokenize(const std::string& text) {
+    // This version of tokenize is deprecated for NLLB/M2M100 if source_language is needed.
+    // Use the overloaded version or handle source_language outside.
+    // For backward compatibility, we just tokenize the text.
     std::vector<std::string> tokens;
     
-    // Tokenize the text with SentencePiece directly
-    // Language tags are passed via target_prefix parameter, not in input text
     if (tokenizer_loaded_ && tokenizer_ && !text.empty()) {
         std::vector<std::string> text_tokens = tokenizer_->encode(text);
         tokens.insert(tokens.end(), text_tokens.begin(), text_tokens.end());
     } else if (!text.empty()) {
-        // Fallback: add entire text as single token
         tokens.push_back(text);
     }
     
-    // Add </s> end-of-sequence token (required for M2M100, NLLB and most seq2seq models)
     tokens.push_back("</s>");
+    return tokens;
+}
+
+// Helper to tokenize with source language
+std::vector<std::string> TranslateWrapper::tokenizeWithSource(const std::string& text, const std::string& source_lang) {
+    std::vector<std::string> tokens;
     
+    // Add source language tag if provided (e.g. "jpn_Jpan")
+    if (!source_lang.empty()) {
+        tokens.push_back(source_lang);
+    }
+    
+    if (tokenizer_loaded_ && tokenizer_ && !text.empty()) {
+        std::vector<std::string> text_tokens = tokenizer_->encode(text);
+        tokens.insert(tokens.end(), text_tokens.begin(), text_tokens.end());
+    } else if (!text.empty()) {
+        tokens.push_back(text);
+    }
+    
+    tokens.push_back("</s>");
     return tokens;
 }
 
@@ -143,7 +161,7 @@ std::string TranslateWrapper::translate(const std::string& text, const Translate
         std::cout << "[Translate] Input text: " << text << std::endl;
         
         // Tokenize input
-        std::vector<std::string> tokens = tokenize(text);
+        std::vector<std::string> tokens = tokenizeWithSource(text, params.source_language);
         std::cout << "[Translate] Tokens count: " << tokens.size() << std::endl;
         
         // Debug: print first few tokens
@@ -223,11 +241,23 @@ std::vector<std::string> TranslateWrapper::translateBatch(
     }
     
     try {
+        std::cout << "[TranslateBatch] Starting batch translation..." << std::endl;
+        std::cout << "[TranslateBatch] Input count: " << texts.size() << std::endl;
+
         // Tokenize all inputs
         std::vector<std::vector<std::string>> batch_tokens;
-        for (const auto& text : texts) {
-            batch_tokens.push_back(tokenize(text));
+        for (size_t i = 0; i < texts.size(); i++) {
+            std::vector<std::string> tokens = tokenizeWithSource(texts[i], params.source_language);
+            batch_tokens.push_back(tokens);
+            // Log first few tokens of first item only to avoid spam
+            if (i == 0) {
+                std::cout << "[TranslateBatch] First item tokens count: " << tokens.size() << std::endl;
+                if (!tokens.empty()) {
+                    std::cout << "[TranslateBatch] First item first token: " << tokens[0] << std::endl;
+                }
+            }
         }
+        std::cout << "[TranslateBatch] All inputs tokenized." << std::endl;
         
         // 翻译选项
         ctranslate2::TranslationOptions options;
@@ -235,29 +265,119 @@ std::vector<std::string> TranslateWrapper::translateBatch(
         options.length_penalty = params.length_penalty;
         options.use_vmap = params.use_vmap;
         
+        std::cout << "[TranslateBatch] Options - Beam: " << options.beam_size 
+                  << ", MaxBatchSize: " << params.max_batch_size << std::endl;
+        
         // 批量翻译 (max_batch_size 作为 translate_batch 的参数)
         std::vector<ctranslate2::TranslationResult> results;
         if (!params.target_prefix.empty()) {
+            std::cout << "[TranslateBatch] Using target_prefix: " << params.target_prefix[0] << std::endl;
+            
+            // DEBUG: Check if target_prefix is a known token in SentencePiece
+            if (tokenizer_) {
+                std::vector<std::string> prefix_tokens = tokenizer_->encode(params.target_prefix[0]);
+                std::cout << "[TranslateBatch] DEBUG: target_prefix encoded by SPM: ";
+                for (const auto& t : prefix_tokens) std::cout << "\"" << t << "\" ";
+                std::cout << std::endl;
+            }
+
+            // DEBUG: Try translating just the first item to verify model works
+            if (!batch_tokens.empty()) {
+                std::cout << "[TranslateBatch] DEBUG: Testing single item translation first..." << std::endl;
+                std::vector<std::vector<std::string>> single_batch = {batch_tokens[0]};
+                std::vector<std::vector<std::string>> single_prefix = {params.target_prefix};
+                // Use synchronous translation for test
+                auto single_result = translator_->translate_batch(single_batch, single_prefix, options, 1);
+                std::cout << "[TranslateBatch] DEBUG: Single item translation successful!" << std::endl;
+            }
+
             // Use target_prefix for each batch item
-            std::vector<std::vector<std::string>> target_prefix_batch(batch_tokens.size(), params.target_prefix);
-            results = translator_->translate_batch(batch_tokens, target_prefix_batch, options, params.max_batch_size);
+            // std::vector<std::vector<std::string>> target_prefix_batch(batch_tokens.size(), params.target_prefix);
+            
+            // std::cout << "[TranslateBatch] Calling translator_->translate_batch (with prefix)..." << std::endl;
+            // results = translator_->translate_batch(batch_tokens, target_prefix_batch, options, params.max_batch_size);
+
+            // Manual batching to isolate crash and manage memory better
+            size_t total_items = batch_tokens.size();
+            // FORCE BATCH SIZE 1 FOR DEBUGGING
+            size_t batch_size = 1; 
+            
+            std::cout << "[TranslateBatch] DEBUG: Forcing batch size to 1 to isolate crash location." << std::endl;
+            std::cout << "[TranslateBatch] Manual batching loop. Total: " << total_items << ", Batch Size: " << batch_size << std::endl;
+
+            for (size_t start_idx = 0; start_idx < total_items; start_idx += batch_size) {
+                size_t end_idx = std::min(start_idx + batch_size, total_items);
+                size_t current_batch_size = end_idx - start_idx;
+                
+                // Only log every 10 items to avoid flooding, unless it's the first few
+                if (start_idx < 5 || start_idx % 10 == 0) {
+                    std::cout << "[TranslateBatch] Processing item " << start_idx << "..." << std::endl;
+                }
+
+                // Prepare chunk data
+                std::vector<std::vector<std::string>> chunk_tokens;
+                chunk_tokens.reserve(current_batch_size);
+                for (size_t i = start_idx; i < end_idx; ++i) {
+                    chunk_tokens.push_back(batch_tokens[i]);
+                }
+
+                std::vector<ctranslate2::TranslationResult> chunk_results;
+                try {
+                    std::vector<std::vector<std::string>> chunk_prefix(current_batch_size, params.target_prefix);
+                    // Pass 0 as max_batch_size because we are already batching manually
+                    chunk_results = translator_->translate_batch(chunk_tokens, chunk_prefix, options, 0);
+                } catch (const std::exception& e) {
+                    std::cout << "[TranslateBatch] ERROR in item " << start_idx << ": " << e.what() << std::endl;
+                    // Print the tokens that caused the error
+                    std::cout << "[TranslateBatch] Problematic tokens: ";
+                    for(const auto& t : chunk_tokens[0]) std::cout << "\"" << t << "\" ";
+                    std::cout << std::endl;
+                    throw; // Re-throw to stop
+                }
+
+                results.insert(results.end(), chunk_results.begin(), chunk_results.end());
+                // std::cout << "[TranslateBatch] Chunk " << start_idx << " finished." << std::endl;
+            }
+
         } else {
-            results = translator_->translate_batch(batch_tokens, options, params.max_batch_size);
+            std::cout << "[TranslateBatch] Calling translator_->translate_batch (no prefix)..." << std::endl;
+            // Manual batching for no-prefix case as well
+             size_t total_items = batch_tokens.size();
+            size_t batch_size = params.max_batch_size > 0 ? params.max_batch_size : 32;
+            
+            for (size_t start_idx = 0; start_idx < total_items; start_idx += batch_size) {
+                size_t end_idx = std::min(start_idx + batch_size, total_items);
+                size_t current_batch_size = end_idx - start_idx;
+                
+                std::vector<std::vector<std::string>> chunk_tokens;
+                chunk_tokens.reserve(current_batch_size);
+                for (size_t i = start_idx; i < end_idx; ++i) {
+                    chunk_tokens.push_back(batch_tokens[i]);
+                }
+
+                std::vector<ctranslate2::TranslationResult> chunk_results;
+                chunk_results = translator_->translate_batch(chunk_tokens, options, 0);
+                results.insert(results.end(), chunk_results.begin(), chunk_results.end());
+            }
         }
         
+        std::cout << "[TranslateBatch] translate_batch returned successfully! Results: " << results.size() << std::endl;
+
         // 收集结果
         std::vector<std::string> translations;
-        for (const auto& result : results) {
-            if (!result.hypotheses.empty()) {
-                translations.push_back(detokenize(result.hypotheses[0]));
+        for (size_t i = 0; i < results.size(); i++) {
+            if (!results[i].hypotheses.empty()) {
+                translations.push_back(detokenize(results[i].hypotheses[0]));
             } else {
                 translations.push_back("");
             }
         }
         
+        std::cout << "[TranslateBatch] Detokenization complete." << std::endl;
         return translations;
         
     } catch (const std::exception& e) {
+        std::cout << "[TranslateBatch] Exception: " << e.what() << std::endl;
         throw std::runtime_error(std::string("Batch translation failed: ") + e.what());
     }
 }

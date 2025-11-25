@@ -17,6 +17,7 @@ struct TranslateParams {
     int max_batch_size = 32;                   // 最大批处理大小
     bool use_vmap = false;                     // 使用词汇映射
     std::vector<std::string> target_prefix;    // 目标语言前缀 (如 ["__zh__"] for M2M100)
+    std::string source_language;               // 源语言代码 (如 "jpn_Jpan" for NLLB)
 };
 
 class TranslateWrapper {
@@ -55,6 +56,7 @@ private:
     
     // Tokenization helpers
     std::vector<std::string> tokenize(const std::string& text);
+    std::vector<std::string> tokenizeWithSource(const std::string& text, const std::string& source_lang);
     std::string detokenize(const std::vector<std::string>& tokens);
 };
 
