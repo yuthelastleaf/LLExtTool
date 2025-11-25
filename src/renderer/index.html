@@ -234,30 +234,24 @@
                 </div>
 
                 <div class="form-group">
-                    <label>翻译模型路径 (目录):</label>
+                    <label>SakuraLLM 模型路径 (GGUF):</label>
                     <div class="input-group">
-                        <input type="text" id="translationModelPath" placeholder="选择模型目录...">
-                        <button id="selectTranslationModelBtn" class="btn btn-secondary">浏览</button>
+                        <input type="text" id="sakuraModelPath" placeholder="选择 GGUF 模型文件...">
+                        <button id="selectSakuraModelBtn" class="btn btn-secondary">浏览</button>
                     </div>
-                    <small style="color: #666; margin-top: 4px; display: block;">选择包含 model.bin 和 config.json 的目录</small>
+                    <small style="color: #666; margin-top: 4px; display: block;">选择 SakuraLLM 的 GGUF 模型文件 (如 sakura-14b-qwen2.5-v1.0-q4km.gguf)</small>
                 </div>
 
                 <div class="form-group">
-                    <label>翻译 Tokenizer 路径:</label>
-                    <div class="input-group">
-                        <input type="text" id="translationTokenizerPath" placeholder="选择 tokenizer 文件...">
-                        <button id="selectTokenizerBtn" class="btn btn-secondary">浏览</button>
-                    </div>
-                    <small style="color: #666; margin-top: 4px; display: block;">选择 sentencepiece.bpe.model 文件</small>
-                </div>
-
-                <div class="form-group">
-                    <label>翻译模型类型:</label>
-                    <select id="translationModelType">
-                        <option value="m2m100">M2M100 (100+ 语言, 语言代码: __ja__, __zh__)</option>
-                        <option value="nllb">NLLB-200 (200 语言, 语言代码: jpn_Jpan, zho_Hans)</option>
+                    <label>GPU 加速层数:</label>
+                    <select id="sakuraGpuLayers">
+                        <option value="-1">全部 (GPU, 推荐)</option>
+                        <option value="0">无 (仅 CPU)</option>
+                        <option value="20">20 层</option>
+                        <option value="30">30 层</option>
+                        <option value="40">40 层</option>
                     </select>
-                    <small style="color: #666; margin-top: 4px; display: block;">根据你的模型选择对应的类型,影响语言代码格式</small>
+                    <small style="color: #666; margin-top: 4px; display: block;">-1 表示全部层使用 GPU，0 表示仅 CPU</small>
                 </div>
 
                 <div class="form-group">
@@ -271,10 +265,13 @@
                 <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
 
                 <div class="form-group">
-                    <button id="reloadTranslationBtn" class="btn btn-success" style="width: 100%;">
-                        🔄 重新加载翻译模型
+                    <div id="sakuraStatusDisplay" style="padding: 10px; background: #f5f5f5; border-radius: 4px; margin-bottom: 10px;">
+                        <span id="sakuraStatusText">模型状态: 未加载</span>
+                    </div>
+                    <button id="loadSakuraModelBtn" class="btn btn-success" style="width: 100%;">
+                        🔄 加载/重新加载 SakuraLLM 模型
                     </button>
-                    <small style="color: #666; margin-top: 4px; display: block;">使用新配置的路径重新加载模型，无需重启应用</small>
+                    <small style="color: #666; margin-top: 4px; display: block;">使用配置的路径加载 SakuraLLM 模型</small>
                 </div>
 
                 <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">

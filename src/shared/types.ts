@@ -23,9 +23,8 @@ export interface TranscriptSegment {
 // 应用配置
 export interface AppConfig {
   whisperModelPath: string;  // Whisper 模型文件路径 (.bin)
-  translationModelPath: string;  // CTranslate2 模型目录路径（包含 model.bin 和 config.json）
-  translationTokenizerPath: string;  // SentencePiece tokenizer 文件路径 (.model)
-  translationModelType: 'm2m100' | 'nllb';  // 翻译模型类型
+  sakuraModelPath: string;   // SakuraLLM GGUF 模型文件路径
+  sakuraGpuLayers: number;   // GPU 层数 (0 = CPU only, -1 = all layers on GPU)
   defaultSourceLanguage: 'ja' | 'en';
   defaultTargetLanguage: 'zh';
   outputDirectory: string;
@@ -51,10 +50,12 @@ export const IpcChannels = {
   LOAD_WHISPER_MODEL: 'load-whisper-model',
   TRANSCRIBE_AUDIO: 'transcribe-audio',
   
-  // 翻译
+  // 翻译 (SakuraLLM)
   TRANSLATE_TEXT: 'translate-text',
   BATCH_TRANSLATE: 'batch-translate',
-  RELOAD_TRANSLATION_MODEL: 'reload-translation-model',
+  LOAD_SAKURA_MODEL: 'load-sakura-model',
+  UNLOAD_SAKURA_MODEL: 'unload-sakura-model',
+  GET_SAKURA_STATUS: 'get-sakura-status',
   
   // 配置
   GET_CONFIG: 'get-config',

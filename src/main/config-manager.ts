@@ -21,14 +21,12 @@ export class ConfigManager {
       : path.dirname(app.getPath('exe'));
     
     const defaultWhisperModelPath = path.join(appRoot, 'native', 'whisper.cpp', 'models', 'ggml-large-v2-f16.bin');
-    const defaultTranslateModelDir = path.join(appRoot, 'native', 'model', 'm2m100-ct2');
-    const defaultTranslateTokenizerPath = path.join(appRoot, 'native', 'model', 'm2m100_418M', 'sentencepiece.bpe.model');
+    const defaultSakuraModelPath = path.join(appRoot, 'native', 'model', 'sakura-14b-qwen2.5-v1.0-q4km.gguf');
     
     return {
       whisperModelPath: fs.existsSync(defaultWhisperModelPath) ? defaultWhisperModelPath : '',
-      translationModelPath: fs.existsSync(defaultTranslateModelDir) ? defaultTranslateModelDir : '',
-      translationTokenizerPath: fs.existsSync(defaultTranslateTokenizerPath) ? defaultTranslateTokenizerPath : '',
-      translationModelType: 'm2m100',
+      sakuraModelPath: fs.existsSync(defaultSakuraModelPath) ? defaultSakuraModelPath : '',
+      sakuraGpuLayers: -1, // 默认全部放 GPU
       defaultSourceLanguage: 'ja',
       defaultTargetLanguage: 'zh',
       outputDirectory: app.getPath('documents'),

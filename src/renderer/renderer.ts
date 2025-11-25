@@ -48,9 +48,8 @@ const elements = {
     settingsBtn: document.getElementById('settingsBtn') as HTMLButtonElement,
     settingsModal: document.getElementById('settingsModal') as HTMLDivElement,
     whisperModelPath: document.getElementById('whisperModelPath') as HTMLInputElement,
-    translationModelPath: document.getElementById('translationModelPath') as HTMLInputElement,
-    translationTokenizerPath: document.getElementById('translationTokenizerPath') as HTMLInputElement,
-    translationModelType: document.getElementById('translationModelType') as HTMLSelectElement,
+    sakuraModelPath: document.getElementById('sakuraModelPath') as HTMLInputElement,
+    sakuraGpuLayers: document.getElementById('sakuraGpuLayers') as HTMLSelectElement,
     outputDirectory: document.getElementById('outputDirectory') as HTMLInputElement,
     defaultSourceLanguage: document.getElementById('defaultSourceLanguage') as HTMLSelectElement,
     defaultTargetLanguage: document.getElementById('defaultTargetLanguage') as HTMLSelectElement,
@@ -106,15 +105,38 @@ function updateConfigUI() {
     if (!currentConfig) return;
     
     elements.whisperModelPath.value = currentConfig.whisperModelPath || '';
-    elements.translationModelPath.value = currentConfig.translationModelPath || '';
-    elements.translationTokenizerPath.value = currentConfig.translationTokenizerPath || '';
-    elements.translationModelType.value = currentConfig.translationModelType || 'm2m100';
+    elements.sakuraModelPath.value = currentConfig.sakuraModelPath || '';
+    elements.sakuraGpuLayers.value = String(currentConfig.sakuraGpuLayers ?? -1);
     elements.outputDirectory.value = currentConfig.outputDirectory || '';
     elements.sourceLanguage.value = currentConfig.defaultSourceLanguage;
     elements.targetLanguage.value = currentConfig.defaultTargetLanguage;
     elements.defaultSourceLanguage.value = currentConfig.defaultSourceLanguage;
     elements.defaultTargetLanguage.value = currentConfig.defaultTargetLanguage;
     elements.audioFormat.value = currentConfig.audioFormat;
+    
+    // 更新 SakuraLLM 状态显示
+    updateSakuraStatus();
+}
+
+/** 更新 SakuraLLM 状态显示 */
+async function updateSakuraStatus() {
+    try {
+        const status = await ipcRenderer.invoke(IpcChannels.GET_SAKURA_STATUS);
+        const statusText = document.getElementById('sakuraStatusText');
+        const statusDisplay = document.getElementById('sakuraStatusDisplay');
+        
+        if (statusText && statusDisplay) {
+            if (status.loaded) {
+                statusText.textContent = `模型状态: ✓ 已加载 (GPU层: ${status.gpuLayers})`;
+                statusDisplay.style.background = '#e8f5e9';
+            } else {
+                statusText.textContent = '模型状态: ✗ 未加载';
+                statusDisplay.style.background = '#ffebee';
+            }
+        }
+    } catch (error) {
+        console.error('[Renderer] Failed to get Sakura status:', error);
+    }
 }
 
 /** 设置事件监听 */
@@ -165,8 +187,6 @@ function setupEventListeners() {
     
     document.getElementById('saveSettingsBtn')?.addEventListener('click', saveSettings);
     
-    document.getElementById('reloadTranslationBtn')?.addEventListener('click', reloadTranslationModel);
-    
     /** 添加说话人对话框 */
     document.getElementById('closeSpeakerModal')?.addEventListener('click', () => {
         elements.addSpeakerModal.classList.add('hidden');
@@ -207,26 +227,24 @@ function setupEventListeners() {
             { name: 'Model Files', extensions: ['bin'] }
         ]);
         console.log('[Renderer] Whisper 模型路径:', path);
-        if (path) elements.whisperModelPath!.value = path;
+        if (path) elements.whisperModelPath.value = path;
     });
     
-    document.getElementById('selectTranslationModelBtn')?.addEventListener('click', async () => {
-        const path = await ipcRenderer.invoke(IpcChannels.SELECT_FOLDER);
-        if (path) elements.translationModelPath!.value = path;
-    });
-    
-    document.getElementById('selectTokenizerBtn')?.addEventListener('click', async () => {
+    document.getElementById('selectSakuraModelBtn')?.addEventListener('click', async () => {
         const path = await ipcRenderer.invoke(IpcChannels.SELECT_FILE, [
-            { name: 'SentencePiece Model', extensions: ['model'] },
+            { name: 'GGUF Model', extensions: ['gguf'] },
             { name: 'All Files', extensions: ['*'] }
         ]);
-        if (path) elements.translationTokenizerPath!.value = path;
+        if (path) elements.sakuraModelPath.value = path;
     });
     
     document.getElementById('selectOutputDirBtn')?.addEventListener('click', async () => {
         const path = await ipcRenderer.invoke(IpcChannels.SELECT_FOLDER);
-        if (path) elements.outputDirectory!.value = path;
+        if (path) elements.outputDirectory.value = path;
     });
+    
+    // SakuraLLM 模型加载按钮
+    document.getElementById('loadSakuraModelBtn')?.addEventListener('click', loadSakuraModel);
     
     // 监听处理状态
     ipcRenderer.on(IpcChannels.PROCESSING_STATUS, (_: any, status: any) => {
@@ -857,9 +875,8 @@ async function saveSettings() {
     try {
         const updates = {
             whisperModelPath: elements.whisperModelPath.value,
-            translationModelPath: elements.translationModelPath.value,
-            translationTokenizerPath: elements.translationTokenizerPath.value,
-            translationModelType: elements.translationModelType.value as 'm2m100' | 'nllb',
+            sakuraModelPath: elements.sakuraModelPath.value,
+            sakuraGpuLayers: parseInt(elements.sakuraGpuLayers.value, 10),
             outputDirectory: elements.outputDirectory.value,
             defaultSourceLanguage: elements.defaultSourceLanguage.value as 'ja' | 'en',
             defaultTargetLanguage: elements.defaultTargetLanguage.value,
@@ -872,40 +889,48 @@ async function saveSettings() {
         elements.targetLanguage.value = updates.defaultTargetLanguage;
         
         elements.settingsModal.classList.add('hidden');
-        alert('设置已保存\n\n提示：如果修改了翻译模型路径或模型类型，请点击"重新加载翻译模型"按钮');
+        alert('设置已保存\n\n提示：如果修改了 SakuraLLM 模型路径，请点击"加载/重新加载 SakuraLLM 模型"按钮');
     } catch (error: any) {
         showError('保存设置失败: ' + error.message);
     }
 }
 
-// 重新加载翻译模型
-async function reloadTranslationModel() {
+// 加载 SakuraLLM 模型
+async function loadSakuraModel() {
     try {
-        const btn = document.getElementById('reloadTranslationBtn') as HTMLButtonElement;
+        const btn = document.getElementById('loadSakuraModelBtn') as HTMLButtonElement;
         const originalText = btn.textContent;
         
         // 显示加载状态
         btn.disabled = true;
-        btn.textContent = '🔄 加载中...';
+        btn.textContent = '⏳ 加载中...';
         
-        console.log('[Renderer] Reloading translation model...');
-        const result = await ipcRenderer.invoke(IpcChannels.RELOAD_TRANSLATION_MODEL);
+        const modelPath = elements.sakuraModelPath.value;
+        const gpuLayers = parseInt(elements.sakuraGpuLayers.value, 10);
+        
+        if (!modelPath) {
+            throw new Error('请先选择 SakuraLLM 模型文件');
+        }
+        
+        console.log('[Renderer] Loading SakuraLLM model...');
+        const result = await ipcRenderer.invoke(IpcChannels.LOAD_SAKURA_MODEL, modelPath, gpuLayers);
         
         // 恢复按钮状态
         btn.disabled = false;
-        btn.textContent = originalText || '🔄 重新加载翻译模型';
+        btn.textContent = originalText || '🔄 加载/重新加载 SakuraLLM 模型';
         
         if (result.success) {
-            alert('✓ 翻译模型重新加载成功！\n\n现在可以使用新的模型进行翻译了。');
-            console.log('[Renderer] Translation model reloaded successfully');
+            alert('✓ SakuraLLM 模型加载成功！\n\n现在可以使用日译中翻译了。');
+            console.log('[Renderer] SakuraLLM model loaded successfully');
+            updateSakuraStatus();
         } else {
-            showError('重新加载失败: ' + result.message);
+            showError('加载失败: ' + result.message);
         }
     } catch (error: any) {
-        const btn = document.getElementById('reloadTranslationBtn') as HTMLButtonElement;
+        const btn = document.getElementById('loadSakuraModelBtn') as HTMLButtonElement;
         btn.disabled = false;
-        btn.textContent = '🔄 重新加载翻译模型';
-        showError('重新加载翻译模型失败: ' + error.message);
+        btn.textContent = '🔄 加载/重新加载 SakuraLLM 模型';
+        showError('加载 SakuraLLM 模型失败: ' + error.message);
     }
 }
 

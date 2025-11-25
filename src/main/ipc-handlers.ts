@@ -3,13 +3,14 @@ import { getMainWindow } from './main';
 import { ConfigManager } from './config-manager';
 import { IpcChannels, ProcessingStatus } from '../shared/types';
 import { modelDownloader } from './model-downloader';
+import { sakuraTranslator } from '../services/sakura-translator';
 import * as path from 'path';
 import * as fs from 'fs';
 
 const configManager = new ConfigManager();
 const bindings = require('bindings');
 
-// 按照 LLAlpcEditor 模式：使用 bindings 包加载
+// 按照 LLAlpcEditor 模式：使用 bindings 包加载（仅视频和Whisper模块）
 let llvideo: any = null;
 let llwhisper: any = null;
 
@@ -29,45 +30,29 @@ function initializeNativeModules() {
     llwhisper = bindings('llwhisper');
     console.log('[Native] ✓ llwhisper loaded');
     console.log('[Native] llwhisper exports:', Object.keys(llwhisper));
-    
-    // 加载翻译模型和tokenizer
-    try {
-      const config = configManager.getConfig();
-      
-      if (config.translationModelPath && config.translationTokenizerPath) {
-        console.log('[Native] Loading translation model from config:', config.translationModelPath);
-        console.log('[Native] Loading tokenizer from config:', config.translationTokenizerPath);
-        
-        // 检查模型文件是否存在
-        const hasModelBin = fs.existsSync(path.join(config.translationModelPath, 'model.bin'));
-        const hasConfig = fs.existsSync(path.join(config.translationModelPath, 'config.json'));
-        const hasTokenizer = fs.existsSync(config.translationTokenizerPath);
-        
-        if (!hasModelBin || !hasConfig) {
-          console.error('[Native] ✗ Translation model files missing:', {
-            modelBin: hasModelBin,
-            config: hasConfig,
-          });
-        } else if (hasTokenizer) {
-          try {
-            // 使用 CUDA 设备（如果可用）
-            llwhisper.loadTranslateModel(config.translationModelPath, 'cuda');
-            console.log('[Native] ✓ Translation model loaded successfully');
-            
-            llwhisper.loadTranslateTokenizer(config.translationTokenizerPath);
-            console.log('[Native] ✓ Tokenizer loaded successfully');
-          } catch (err: any) {
-            console.error('[Native] ✗ Failed to load translation model/tokenizer:', err.message);
-          }
-        }
-      } else {
-        console.log('[Native] ⚠ Translation model/tokenizer not configured');
-      }
-    } catch (transError: any) {
-      console.error('[Native] ✗ Failed to load translation model:', transError.message);
-    }
   } catch (error: any) {
     console.error('[Native] ✗ Failed to load llwhisper:', error.message);
+  }
+  
+  // 自动加载 SakuraLLM 模型（如果配置了）
+  initializeSakuraModel();
+}
+
+// 初始化 SakuraLLM 模型
+async function initializeSakuraModel() {
+  try {
+    const config = configManager.getConfig();
+    
+    if (config.sakuraModelPath && fs.existsSync(config.sakuraModelPath)) {
+      console.log('[SakuraLLM] Auto-loading model from config:', config.sakuraModelPath);
+      await sakuraTranslator.loadModel(config.sakuraModelPath, {
+        gpuLayers: config.sakuraGpuLayers,
+      });
+    } else {
+      console.log('[SakuraLLM] ⚠ Model not configured or file not found');
+    }
+  } catch (error: any) {
+    console.error('[SakuraLLM] ✗ Failed to auto-load model:', error.message);
   }
 }
 
@@ -283,175 +268,87 @@ export function setupIpcHandlers() {
     return null;
   });
 
-  // 翻译文本
-  ipcMain.handle(IpcChannels.TRANSLATE_TEXT, async (_, text: string, sourceLang: string, targetLang: string) => {
+  // 翻译文本 (SakuraLLM)
+  ipcMain.handle(IpcChannels.TRANSLATE_TEXT, async (_, text: string, _sourceLang: string, _targetLang: string, options?: any) => {
     try {
-      if (!llwhisper || !llwhisper.translateText) {
-        console.warn('[Translate] Translation module not loaded, returning original text');
-        return text; // 翻译模块未加载，返回原文
+      const status = sakuraTranslator.getStatus();
+      if (!status.loaded) {
+        console.warn('[SakuraLLM] Model not loaded, returning original text');
+        return text;
       }
       
-      const config = configManager.getConfig();
-      const modelType = config.translationModelType || 'm2m100';
+      console.log(`[SakuraLLM] Translating: ${text.substring(0, 50)}...`);
       
-      // 根据模型类型转换语言代码
-      let targetLangCode: string;
-      let sourceLangCode: string = sourceLang;
+      const result = await sakuraTranslator.translate(text, {
+        prevText: options?.prevText,
+        nextText: options?.nextText,
+      });
       
-      if (modelType === 'nllb') {
-        // NLLB-200 使用 Flores-200 语言代码
-        const nllbLangMap: Record<string, string> = {
-          'ja': 'jpn_Jpan',
-          'zh': 'zho_Hans',
-          'en': 'eng_Latn',
-          'ko': 'kor_Hang',
-          'fr': 'fra_Latn',
-          'de': 'deu_Latn',
-          'es': 'spa_Latn'
-        };
-        targetLangCode = nllbLangMap[targetLang] || targetLang;
-        sourceLangCode = nllbLangMap[sourceLang] || sourceLang;
-      } else {
-        // M2M100 使用双下划线格式
-        targetLangCode = `__${targetLang}__`;
-        // M2M100 usually doesn't need explicit source tag in input if using language tokens, 
-        // but for consistency we can prepare it. However, our C++ implementation 
-        // for M2M100 might not use it in the same way as NLLB.
-        // For now, we only pass source_language for NLLB or if needed.
-      }
-      
-      console.log(`[Translate] Model: ${modelType}, Translating ${sourceLang} -> ${targetLang} (${targetLangCode}): ${text.substring(0, 50)}...`);
-      
-      const options: any = {
-        target_prefix: [targetLangCode],
-        beam_size: 4,
-        length_penalty: 1
-      };
-      
-      if (modelType === 'nllb') {
-        options.source_language = sourceLangCode;
-      }
-      
-      const result = llwhisper.translateText(text, options);
-      
-      console.log(`[Translate] Result: ${result.substring(0, 50)}...`);
+      console.log(`[SakuraLLM] Result: ${result.substring(0, 50)}...`);
       return result;
     } catch (error: any) {
-      console.error('[Translate] Error:', error.message);
-      console.warn('[Translate] Returning original text due to translation failure');
+      console.error('[SakuraLLM] Error:', error.message);
       return text; // 翻译失败，返回原文
     }
   });
 
-  // 批量翻译
-  ipcMain.handle(IpcChannels.BATCH_TRANSLATE, async (_, texts: string[], sourceLang: string, targetLang: string, extraOptions?: any) => {
+  // 批量翻译 (SakuraLLM)
+  ipcMain.handle(IpcChannels.BATCH_TRANSLATE, async (_, texts: string[], _sourceLang: string, _targetLang: string, extraOptions?: any) => {
     try {
-      if (!llwhisper || !llwhisper.translateBatch) {
-        console.warn('[Translate] Translation module not loaded, returning original texts');
-        return texts; // 翻译模块未加载，返回原文
+      const status = sakuraTranslator.getStatus();
+      if (!status.loaded) {
+        console.warn('[SakuraLLM] Model not loaded, returning original texts');
+        return texts;
       }
       
-      const config = configManager.getConfig();
-      const modelType = config.translationModelType || 'm2m100';
+      console.log(`[SakuraLLM] Batch translating ${texts.length} texts...`);
       
-      // 根据模型类型转换语言代码
-      let targetLangCode: string;
-      let sourceLangCode: string = sourceLang;
+      const results = await sakuraTranslator.translateBatch(texts, {
+        useContext: extraOptions?.useContext ?? true,
+      });
       
-      if (modelType === 'nllb') {
-        // NLLB-200 使用 Flores-200 语言代码
-        const nllbLangMap: Record<string, string> = {
-          'ja': 'jpn_Jpan',
-          'zh': 'zho_Hans',
-          'en': 'eng_Latn',
-          'ko': 'kor_Hang',
-          'fr': 'fra_Latn',
-          'de': 'deu_Latn',
-          'es': 'spa_Latn'
-        };
-        targetLangCode = nllbLangMap[targetLang] || targetLang;
-        sourceLangCode = nllbLangMap[sourceLang] || sourceLang;
-      } else {
-        // M2M100 使用双下划线格式
-        targetLangCode = `__${targetLang}__`;
-      }
-      
-      console.log(`[Translate] Model: ${modelType}, Batch translating ${texts.length} texts (${sourceLang} -> ${targetLang} (${targetLangCode}))...`);
-      
-      const options: any = {
-        target_prefix: [targetLangCode],
-        beam_size: 5, // 默认 Beam Size 调整为 5 以提高质量
-        max_batch_size: 32,
-        length_penalty: 1,
-        ...extraOptions // 合并额外参数
-      };
-      
-      if (modelType === 'nllb') {
-        options.source_language = sourceLangCode;
-      }
-      
-      const results = llwhisper.translateBatch(texts, options);
-      
-      console.log(`[Translate] Batch translation completed: ${results.length} results`);
+      console.log(`[SakuraLLM] Batch translation completed: ${results.length} results`);
       return results;
     } catch (error: any) {
-      console.error('[Translate] Batch error:', error.message);
-      console.warn('[Translate] Returning original texts due to translation failure');
+      console.error('[SakuraLLM] Batch error:', error.message);
       return texts; // 翻译失败，返回原文
     }
   });
 
-  // 重新加载翻译模型
-  ipcMain.handle(IpcChannels.RELOAD_TRANSLATION_MODEL, async () => {
+  // 加载 SakuraLLM 模型
+  ipcMain.handle(IpcChannels.LOAD_SAKURA_MODEL, async (_, modelPath: string, gpuLayers?: number) => {
     try {
-      if (!llwhisper) {
-        throw new Error('Native module not loaded');
-      }
-
-      const config = configManager.getConfig();
+      console.log(`[SakuraLLM] Loading model from: ${modelPath}`);
       
-      if (!config.translationModelPath || !config.translationTokenizerPath) {
-        throw new Error('翻译模型路径或 Tokenizer 路径未配置');
+      if (!fs.existsSync(modelPath)) {
+        throw new Error(`模型文件不存在: ${modelPath}`);
       }
-
-      console.log('[Native] Reloading translation model...');
-      console.log('[Native] Model path:', config.translationModelPath);
-      console.log('[Native] Tokenizer path:', config.translationTokenizerPath);
-
-      // 检查文件是否存在
-      const hasModelBin = fs.existsSync(path.join(config.translationModelPath, 'model.bin'));
-      const hasConfig = fs.existsSync(path.join(config.translationModelPath, 'config.json'));
-      const hasTokenizer = fs.existsSync(config.translationTokenizerPath);
-
-      if (!hasModelBin) {
-        throw new Error(`未找到 model.bin 文件：${path.join(config.translationModelPath, 'model.bin')}`);
-      }
-      if (!hasConfig) {
-        throw new Error(`未找到 config.json 文件：${path.join(config.translationModelPath, 'config.json')}`);
-      }
-      if (!hasTokenizer) {
-        throw new Error(`未找到 tokenizer 文件：${config.translationTokenizerPath}`);
-      }
-
-      // 重新加载模型
-      const modelLoaded = llwhisper.loadTranslateModel(config.translationModelPath, 'cuda');
-      if (!modelLoaded) {
-        throw new Error('模型加载失败');
-      }
-      console.log('[Native] ✓ Translation model reloaded successfully');
-
-      // 重新加载 tokenizer
-      const tokenizerLoaded = llwhisper.loadTranslateTokenizer(config.translationTokenizerPath);
-      if (!tokenizerLoaded) {
-        throw new Error('Tokenizer 加载失败');
-      }
-      console.log('[Native] ✓ Tokenizer reloaded successfully');
-
-      return { success: true, message: '翻译模型重新加载成功' };
+      
+      await sakuraTranslator.loadModel(modelPath, {
+        gpuLayers: gpuLayers ?? -1,
+      });
+      
+      return { success: true, message: 'SakuraLLM 模型加载成功' };
     } catch (error: any) {
-      console.error('[Native] ✗ Failed to reload translation model:', error.message);
+      console.error('[SakuraLLM] Load error:', error.message);
       return { success: false, message: error.message };
     }
+  });
+
+  // 卸载 SakuraLLM 模型
+  ipcMain.handle(IpcChannels.UNLOAD_SAKURA_MODEL, async () => {
+    try {
+      await sakuraTranslator.unloadModel();
+      return { success: true, message: 'SakuraLLM 模型已卸载' };
+    } catch (error: any) {
+      console.error('[SakuraLLM] Unload error:', error.message);
+      return { success: false, message: error.message };
+    }
+  });
+
+  // 获取 SakuraLLM 状态
+  ipcMain.handle(IpcChannels.GET_SAKURA_STATUS, async () => {
+    return sakuraTranslator.getStatus();
   });
 
   // 保存字幕
