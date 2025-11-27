@@ -391,6 +391,33 @@ export function setupIpcHandlers() {
       throw new Error(`读取文件失败: ${error.message}`);
     }
   });
+
+  /** 写入文件 */
+  ipcMain.handle(IpcChannels.WRITE_FILE, async (_, filePath: string, content: string) => {
+    try {
+      fs.writeFileSync(filePath, content, 'utf-8');
+      return true;
+    } catch (error: any) {
+      throw new Error(`写入文件失败: ${error.message}`);
+    }
+  });
+
+  /** 保存文件对话框 */
+  ipcMain.handle(IpcChannels.SAVE_FILE, async (_, options: { filters?: any[], defaultPath?: string }) => {
+    try {
+      const result = await dialog.showSaveDialog({
+        defaultPath: options.defaultPath || 'untitled',
+        filters: options.filters || [{ name: 'All Files', extensions: ['*'] }]
+      });
+
+      if (!result.canceled && result.filePath) {
+        return result.filePath;
+      }
+      return null;
+    } catch (error: any) {
+      throw new Error(`保存文件对话框失败: ${error.message}`);
+    }
+  });
   
   /** 读取音频文件为 ArrayBuffer */
   ipcMain.handle(IpcChannels.READ_AUDIO_BUFFER, async (_, filePath: string) => {
@@ -399,6 +426,44 @@ export function setupIpcHandlers() {
       return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
     } catch (error: any) {
       throw new Error(`读取音频文件失败: ${error.message}`);
+    }
+  });
+
+  /** 列出目录中的视频文件 */
+  ipcMain.handle(IpcChannels.LIST_VIDEO_FILES, async (_, dirPath: string) => {
+    try {
+      const videoExtensions = ['.mp4', '.avi', '.mkv', '.mov', '.flv', '.wmv', '.webm', '.m4v'];
+      const files = fs.readdirSync(dirPath);
+      const videoFiles = files
+        .filter(file => {
+          const ext = path.extname(file).toLowerCase();
+          return videoExtensions.includes(ext);
+        })
+        .map(file => path.join(dirPath, file))
+        .sort();
+      return videoFiles;
+    } catch (error: any) {
+      throw new Error(`读取目录失败: ${error.message}`);
+    }
+  });
+
+  /** 查找关联的音频文件（同名不同扩展名） */
+  ipcMain.handle(IpcChannels.FIND_ASSOCIATED_AUDIO, async (_, subtitlePath: string) => {
+    try {
+      const dir = path.dirname(subtitlePath);
+      const baseName = path.basename(subtitlePath, path.extname(subtitlePath));
+      const audioExtensions = ['.wav', '.mp3', '.flac', '.m4a', '.aac', '.ogg'];
+      
+      for (const ext of audioExtensions) {
+        const audioPath = path.join(dir, baseName + ext);
+        if (fs.existsSync(audioPath)) {
+          return audioPath;
+        }
+      }
+      return null;
+    } catch (error: any) {
+      console.error('[IPC] Find associated audio error:', error.message);
+      return null;
     }
   });
 }

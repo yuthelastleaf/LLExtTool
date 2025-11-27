@@ -65,8 +65,12 @@ export const IpcChannels = {
   SELECT_FILE: 'select-file',
   SELECT_FOLDER: 'select-folder',
   READ_FILE: 'read-file',
+  WRITE_FILE: 'write-file',
+  SAVE_FILE: 'save-file',
   READ_AUDIO_BUFFER: 'read-audio-buffer',
   SAVE_SUBTITLES: 'save-subtitles',
+  LIST_VIDEO_FILES: 'list-video-files',
+  FIND_ASSOCIATED_AUDIO: 'find-associated-audio',
   
   // 状态更新
   PROCESSING_STATUS: 'processing-status',

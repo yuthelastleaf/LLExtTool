@@ -96,6 +96,13 @@ body {
     color: var(--secondary-color);
 }
 
+.form-hint {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    color: #888;
+}
+
 .input-group {
     display: flex;
     gap: 10px;
@@ -231,6 +238,10 @@ input[type="text"]:read-only {
     background: var(--light-bg);
     position: relative;
     overflow: hidden;
+}
+
+.editor-area.hidden {
+    display: none;
 }
 
 .editor-header {
@@ -1042,4 +1053,814 @@ input[type="text"]:read-only {
 .overview-table .empty-state .hint {
     font-size: 13px;
     opacity: 0.7;
+}
+
+/* ==================== 头部 Tab 切换 ==================== */
+.header-tabs {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-tab {
+    padding: 8px 20px;
+    border: 2px solid var(--border-color);
+    background: transparent;
+    color: var(--dark-text);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-tab:hover {
+    background: var(--light-bg);
+    border-color: var(--primary-color);
+}
+
+.btn-tab.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* ==================== 微调数据编辑器 ==================== */
+.finetune-workspace {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    background: var(--light-bg);
+}
+
+.finetune-workspace.hidden {
+    display: none;
+}
+
+/* 微调工具栏 */
+.finetune-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: white;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow);
+}
+
+.finetune-toolbar-left,
+.finetune-toolbar-center,
+.finetune-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.finetune-stats {
+    font-size: 13px;
+    color: var(--secondary-color);
+    padding: 6px 12px;
+    background: var(--light-bg);
+    border-radius: 4px;
+}
+
+.finetune-stats span {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+/* 微调主内容区 */
+.finetune-main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    gap: 0;
+}
+
+/* 面板通用样式 */
+.finetune-source-panel,
+.finetune-dataset-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.finetune-source-panel {
+    margin: 15px 0 15px 15px;
+    border-radius: 8px 0 0 8px;
+}
+
+.finetune-dataset-panel {
+    margin: 15px 15px 15px 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: #f5f5f5;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--dark-text);
+}
+
+.panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.filter-select {
+    padding: 5px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    background: white;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--secondary-color);
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+/* 表格容器 */
+.source-table-container,
+.dataset-table-container {
+    flex: 1;
+    overflow: auto;
+}
+
+/* 源表格样式 */
+.source-table,
+.dataset-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.source-table thead,
+.dataset-table thead {
+    position: sticky;
+    top: 0;
+    background: #e9ecef;
+    z-index: 5;
+}
+
+.source-table th,
+.dataset-table th {
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--dark-text);
+    border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.source-table td,
+.dataset-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+}
+
+.source-table tbody tr,
+.dataset-table tbody tr {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.source-table tbody tr:hover,
+.dataset-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.source-table tbody tr.selected,
+.dataset-table tbody tr.selected {
+    background: #e3f2fd;
+}
+
+.source-table tbody tr.selected:hover,
+.dataset-table tbody tr.selected:hover {
+    background: #bbdefb;
+}
+
+/* 列宽 */
+.source-table .col-check {
+    width: 40px;
+    text-align: center;
+}
+
+.source-table .col-role {
+    width: 80px;
+}
+
+.source-table .col-original-text,
+.source-table .col-translated-text {
+    width: 40%;
+}
+
+.dataset-table .col-instruction {
+    width: 20%;
+}
+
+.dataset-table .col-input {
+    width: 30%;
+}
+
+.dataset-table .col-output {
+    width: 35%;
+}
+
+.dataset-table .col-action {
+    width: 60px;
+    text-align: center;
+}
+
+/* 角色徽章 */
+.role-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    background: var(--secondary-color);
+}
+
+/* 文本截断 */
+.text-truncate {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 删除按钮 */
+.btn-delete-row {
+    background: none;
+    border: none;
+    color: var(--danger-color);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.btn-delete-row:hover {
+    background: #fee;
+}
+
+/* 中间传输按钮区 */
+.finetune-transfer {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    padding: 20px 10px;
+    background: #f0f0f0;
+}
+
+.transfer-btn {
+    padding: 15px 12px;
+    font-size: 12px;
+    text-align: center;
+    line-height: 1.4;
+    border-radius: 8px;
+}
+
+/* 底部编辑区 */
+.finetune-editor {
+    background: white;
+    border-top: 2px solid var(--primary-color);
+    padding: 15px 20px;
+    flex-shrink: 0;
+}
+
+.finetune-editor .editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 0;
+    background: none;
+    border: none;
+}
+
+.finetune-editor .editor-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--dark-text);
+}
+
+.finetune-editor .editor-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.editor-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 15px;
+}
+
+.editor-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.editor-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--secondary-color);
+    margin-bottom: 6px;
+}
+
+.editor-field textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.editor-field textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.editor-field textarea:disabled {
+    background: #f5f5f5;
+    cursor: not-allowed;
+}
+
+.editor-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 15px;
+    background: #fff8e1;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #856404;
+}
+
+.hint-icon {
+    font-size: 16px;
+}
+
+/* 小按钮 */
+.btn-small {
+    padding: 5px 12px;
+    font-size: 12px;
+}
+
+/* 空状态 */
+.source-table .empty-row td,
+.dataset-table .empty-row td {
+    padding: 40px 20px;
+    text-align: center;
+}
+
+/* 系统指令对话框 */
+#systemPromptModal textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    resize: vertical;
+}
+
+#systemPromptModal textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* ==================== ChatML 对话编辑器样式 ==================== */
+
+/* 可拖动分割条 - 垂直 (左右) */
+.resize-handle-v {
+    width: 6px;
+    background: #e0e0e0;
+    cursor: col-resize;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.resize-handle-v:hover,
+.resize-handle-v.resizing {
+    background: var(--primary-color);
+}
+
+.resize-handle-v::after {
+    content: '⋮';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #999;
+    font-size: 14px;
+}
+
+/* 可拖动分割条 - 水平 (上下) */
+.resize-handle-h {
+    height: 6px;
+    background: #e0e0e0;
+    cursor: row-resize;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.resize-handle-h:hover,
+.resize-handle-h.resizing {
+    background: var(--primary-color);
+}
+
+.resize-handle-h::after {
+    content: '⋯';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #999;
+    font-size: 14px;
+}
+
+/* 面板区块 */
+.panel-section {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.panel-section:last-child {
+    border-bottom: none;
+}
+
+.source-section {
+    flex: 0 0 40%;
+    min-height: 120px;
+}
+
+.conv-section {
+    flex: 1;
+    min-height: 150px;
+}
+
+/* 对话列表面板 */
+.finetune-source-panel {
+    flex: 0 0 35%;
+    min-width: 280px;
+    max-width: 50%;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border: 1px solid var(--border-color);
+    margin: 15px 0 15px 15px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* 对话编辑器面板 */
+.finetune-editor-panel {
+    flex: 1;
+    min-width: 400px;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border: 1px solid var(--border-color);
+    margin: 15px 15px 15px 0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* System Prompt 显示区域 */
+.system-prompt-display {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 15px;
+    background: linear-gradient(135deg, #f5f5f5 0%, #ede7f6 100%);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.system-prompt-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #7b1fa2;
+    white-space: nowrap;
+}
+
+.system-prompt-preview {
+    flex: 1;
+    font-size: 12px;
+    color: #666;
+    line-height: 1.4;
+    max-height: 40px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 快捷添加区 */
+.quick-add-section {
+    padding: 12px 15px;
+    background: #f8f9fa;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.quick-add-row {
+    display: flex;
+    gap: 8px;
+}
+
+.quick-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 13px;
+    background: white;
+    color: var(--dark-text);
+    pointer-events: auto;
+}
+
+.quick-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+/* 对话列表 */
+.conversation-list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.conversation-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.conversation-item {
+    padding: 12px;
+    background: #f8f9fa;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.conversation-item:hover {
+    background: #e9ecef;
+    border-color: #90caf9;
+}
+
+.conversation-item.selected {
+    background: #e3f2fd;
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+}
+
+.conversation-item .conv-preview {
+    font-size: 13px;
+    color: var(--dark-text);
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 30px;
+}
+
+.conversation-item .conv-meta {
+    font-size: 11px;
+    color: var(--secondary-color);
+}
+
+.conversation-item .conv-delete-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.conversation-item:hover .conv-delete-btn {
+    opacity: 1;
+}
+
+.conversation-item .conv-delete-btn:hover {
+    color: var(--danger-color);
+}
+
+/* System Prompt 区域 - 已移到 system-prompt-display */
+
+/* 消息容器 */
+.messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #fafafa;
+}
+
+/* 消息气泡 */
+.message-item {
+    display: flex;
+    flex-direction: column;
+    max-width: 90%;
+    position: relative;
+    animation: messageSlideIn 0.2s ease-out;
+}
+
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-item.user {
+    align-self: flex-end;
+}
+
+.message-item.assistant {
+    align-self: flex-start;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    padding: 0 4px;
+}
+
+.message-role {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.message-item.user .message-role {
+    color: #1976d2;
+}
+
+.message-item.assistant .message-role {
+    color: #388e3c;
+}
+
+.message-item .delete-msg-btn {
+    opacity: 0;
+    transition: opacity 0.2s;
+    padding: 2px 6px;
+    font-size: 11px;
+}
+
+.message-item:hover .delete-msg-btn {
+    opacity: 1;
+}
+
+.message-content {
+    width: 100%;
+    min-width: 250px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 60px;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.message-item.user .message-content {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-bottom-right-radius: 4px;
+}
+
+.message-item.assistant .message-content {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-bottom-left-radius: 4px;
+}
+
+.message-content:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+}
+
+/* 消息合并高亮动画 */
+.message-item.merged-highlight {
+    animation: mergeHighlight 0.5s ease-out;
+}
+
+@keyframes mergeHighlight {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.5);
+    }
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 0 0 5px rgba(76, 175, 80, 0.3);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: none;
+    }
+}
+
+/* 消息删除按钮 */
+.message-delete-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ef5350;
+    color: white;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.message-item:hover .message-delete-btn {
+    display: flex;
+}
+
+.message-delete-btn:hover {
+    background: #d32f2f;
+}
+
+/* 小型空状态 */
+.empty-state.small {
+    padding: 20px;
+}
+
+.empty-state.small p {
+    font-size: 12px;
+}
+
+/* 源表格添加按钮 */
+.source-table .add-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.source-table .add-btn:hover {
+    background: #1565c0;
 }
